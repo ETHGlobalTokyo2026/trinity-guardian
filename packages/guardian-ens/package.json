@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+  "typecheck": "tsc --noEmit",
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "rpc:check": "node --env-file=.env.local --experimental-strip-types scripts/check-rpc.ts"
   },
   "devEngines": {
     "packageManager": {
