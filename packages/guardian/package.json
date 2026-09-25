@@ -1,0 +1,19 @@
+{
+  "name": "@trinity/guardian",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.42.0",
+    "@ensdomains/ensjs": "ENSv2-compatible version TBD at event",
+    "@worldcoin/idkit": "latest"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
