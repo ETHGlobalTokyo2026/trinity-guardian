@@ -8,7 +8,8 @@
   "test": "vitest run",
   "test:watch": "vitest",
   "rpc:check": "node --env-file=.env.local --experimental-strip-types scripts/check-rpc.ts",
-  "ens:check": "node --env-file=.env.local --experimental-strip-types scripts/check-ens.ts"
+  "ens:check": "node --env-file=.env.local --experimental-strip-types scripts/check-ens.ts",
+  "wallet:check": "node --env-file=.env.local --experimental-strip-types scripts/check-wallet.ts"
   },
   "devEngines": {
     "packageManager": {
