@@ -1,0 +1,102 @@
+{
+  "project": "Trinity Guardian",
+  "branchName": "feature/agent",
+  "description": "x402 buyer runtime with Guardian gate for Trinity Guardian (ETHGlobal Tokyo 2026). Ports the verified POC agent.ts to the real build: quote decode from Payment-Required header (v2 format), Guardian check before sign, real EIP-3009 signing via @x402/evm ExactEvmScheme, spend accumulator with daily reset, and typed event emission for the UI dashboard. SRS: FR-1..FR-6, FR-15/FR-16, FR-50 (events), FR-60..FR-63 (demo runner).",
+  "userStories": [
+    {
+      "id": "AG-001",
+      "title": "createAgent factory with x402 client setup",
+      "description": "As a developer, I want a createAgent(name, privateKey) factory that sets up the x402 client with ExactEvmScheme and spendControls so the agent can pay on Base Sepolia.",
+      "acceptanceCriteria": [
+        "src/agent/index.ts exports createAgent(name: string, privateKey: `0x${string}`): Agent",
+        "x402Client.fromConfig with schemes: [{ network: 'eip155:84532', client: new ExactEvmScheme(signer) }]",
+        "spendControls.maxAmountPerPayment set to '$50' (SDK ceiling = dailyCap)",
+        "Agent interface: name, address, buy(resource, opts?), getSpendState(), onPaymentEvent(handler)",
+        "EVM_PRIVATE_KEY required — throws with clear message if missing",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-1, FR-5, FR-6. Port from POC agent.ts. viem privateKeyToAccount for signer."
+    },
+    {
+      "id": "AG-002",
+      "title": "Quote decoder for x402 v2 format",
+      "description": "As an agent, I want to decode the Payment-Required header (base64 JSON, v2 format) so I can extract payTo, amount, asset, network for Guardian screening.",
+      "acceptanceCriteria": [
+        "src/agent/quote.ts exports decodeQuote(header) and pickAccept(quote)",
+        "Handles v2 format: { x402Version, error, resource: { url, description, mimeType }, accepts: PaymentRequirements[] }",
+        "pickAccept prefers eip155:84532, falls back to any eip155:, then accepts[0]",
+        "Does not crash on missing optional fields (description, mimeType, extra)",
+        "Types match src/agent/types.ts (PaymentRequirements, X402Quote)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-2, FR-3. POC agent.ts pickAccept() is the reference implementation."
+    },
+    {
+      "id": "AG-003",
+      "title": "buy() orchestration with Guardian gate",
+      "description": "As an agent, I want buy(resource) to: plain fetch → decode 402 quote → call Guardian.checkPolicy() → sign via fetchWithPayment only if approved, so no payment ever bypasses the Guardian.",
+      "acceptanceCriteria": [
+        "src/agent/buy.ts implements: fetch → 402 → decode → guardian.checkPolicy(reqs, dailySpend) → sign or refuse",
+        "hard_fail → returns { status: 'refused', reason } without signing",
+        "soft_fail → calls guardian.requestApproval(reqs, reasons); denied → refused",
+        "On success: signs with wrapFetchWithPayment, reads payment-response header, returns { status: 'paid', txHash }",
+        "Spend accumulator incremented only after successful settlement",
+        "Sign/settle errors caught and returned as refused with reason (no unhandled rejections)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-4. Uses mock guardian until task-guardian lands: amount > 5M → soft_fail, scam addr → hard_fail, else pass."
+    },
+    {
+      "id": "AG-004",
+      "title": "Spend accumulator with daily reset",
+      "description": "As a guardian, I want the agent to track daily spend (UTC window) so cap checks use a running total.",
+      "acceptanceCriteria": [
+        "SpendState { spendToday: bigint, txCount, window: ISO-date, lastUpdated }",
+        "getSpendState() returns current accumulator",
+        "Resets when window !== today (UTC ISO date)",
+        "Increments by amount (atomic units) after each successful payment",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-15, FR-16. Storage is in-memory for MVP (on-chain accumulator is out of scope per SRS)."
+    },
+    {
+      "id": "AG-005",
+      "title": "Payment event emission for UI",
+      "description": "As a UI dashboard, I want to subscribe to payment lifecycle events so I can render the live 3-layer journey.",
+      "acceptanceCriteria": [
+        "Event types: quote_received, guardian_checking, guardian_verdict, approval_requested, approval_response, signing, paid, refused",
+        "PaymentEvent includes: type, timestamp, agentName, resource, payTo?, amount?, verdict?, txHash?, reason?",
+        "onPaymentEvent(handler) returns unsubscribe function",
+        "Events emitted at each lifecycle step during buy()",
+        "UI mock can console.log all events via subscription (verified in demo)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-50 (UI dependency). Contract-first: event types are the UI task's primary dependency on this task."
+    },
+    {
+      "id": "AG-006",
+      "title": "CLI demo runner for 4 demo acts",
+      "description": "As a presenter, I want a CLI runner that executes the 4 demo scenarios (pass, block, soft-fail, kill switch) so the demo works without the UI.",
+      "acceptanceCriteria": [
+        "src/cli/demo.ts runs scenarios 1-4: /weather (pass), /data (block), /compute (soft-fail approval), revoked-role agent (kill switch)",
+        "Scenario 3 prompts approve/deny when TTY, auto-deny when not",
+        "Summary table at end: status per scenario + spend today",
+        "Exit code 0",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "FR-60..FR-63. Port from POC demo.ts. Scenario 4 depends on guardian ENS layer landing."
+    }
+  ]
+}

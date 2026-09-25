@@ -1,0 +1,69 @@
+{
+  "project": "Trinity Guardian",
+  "branchName": "feature/seller",
+  "description": "x402 metered API seller for Trinity Guardian (ETHGlobal Tokyo 2026). Ports the verified POC seller.ts to the real build with @x402/express paymentMiddleware on Base Sepolia via the x402.org facilitator, plus a new /merchants metadata endpoint so the UI can render a seller picker with spam/legit distinction. Standalone service — no dependencies on other tasks; merge first. SRS: FR-60..FR-62 (demo endpoints), FR-50 (merchants metadata for UI).",
+  "userStories": [
+    {
+      "id": "SE-001",
+      "title": "Express server with @x402 paymentMiddleware",
+      "description": "As an agent, I want a metered API that returns 402 with payment requirements, so I can pay per-request via x402.",
+      "acceptanceCriteria": [
+        "src/seller/index.ts boots Express with paymentMiddleware from @x402/express",
+        "x402ResourceServer registered for eip155:84532 with ExactEvmScheme",
+        "HTTPFacilitatorClient points to https://x402.org/facilitator",
+        "curl http://localhost:4020/weather returns 402 with Payment-Required header",
+        "Decoded header matches v2 schema: { x402Version: 2, resource: {...}, accepts: [...] }",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Port from POC seller.ts (verified E2E). Env: PORT=4020 default."
+    },
+    {
+      "id": "SE-002",
+      "title": "Three demo endpoints with correct pricing and payTo",
+      "description": "As a presenter, I want 3 endpoints covering the 3 demo scenarios (clean, block, over-cap) so each Guardian layer has a trigger.",
+      "acceptanceCriteria": [
+        "GET /weather?city= — $0.01 (10000 units) → SELLER_ADDRESS_A, returns { city, tempC, forecast }",
+        "GET /data — $0.25 (250000 units) → SELLER_ADDRESS_B, returns { dataset, rows }",
+        "GET /compute — $7.00 (7000000 units) → SELLER_ADDRESS_A, returns { result, model }",
+        "All accepts use network eip155:84532",
+        "Prices and payTo verified via decoded 402 headers",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-60, FR-61, FR-62. Env: SELLER_ADDRESS_A (safe), SELLER_ADDRESS_B (flagged)."
+    },
+    {
+      "id": "SE-003",
+      "title": "/merchants endpoint with spam metadata",
+      "description": "As a UI dashboard, I want a list of merchants with name, description, price, address, and spam flag, so I can render risk legibly BEFORE the user pays.",
+      "acceptanceCriteria": [
+        "GET /merchants (no auth) returns MerchantsResponse { merchants: MerchantInfo[] }",
+        "MerchantInfo: { id, name, description, address, isSpam, spamReason?, endpoints: EndpointInfo[] }",
+        "EndpointInfo: { path, method, price ('$0.01'), priceUnits ('10000'), description }",
+        "Two merchants: merchant-safe (Weather API, isSpam: false) and merchant-spam (Premium Data, isSpam: true, spamReason set)",
+        "Addresses match SELLER_ADDRESS_A/B from env",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Primary new feature vs POC. UI task consumes this for the SellerPicker screen."
+    },
+    {
+      "id": "SE-004",
+      "title": "Env-based config and types module",
+      "description": "As a developer, I want clean env-driven config and exported types so other tasks can import seller types without runtime coupling.",
+      "acceptanceCriteria": [
+        "src/seller/config.ts resolves SELLER_ADDRESS_A/B + PORT from env, throws with clear message if missing",
+        "src/seller/types.ts exports MerchantInfo, EndpointInfo, MerchantsResponse",
+        "Recycle mode preserved: SELLER_ADDRESS_A empty → agent wallet (optional nicety, not required)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Types are the contract for task-ui imports."
+    }
+  ]
+}

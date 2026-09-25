@@ -1,0 +1,115 @@
+{
+  "project": "Trinity Guardian",
+  "branchName": "feature/ui",
+  "description": "Next.js 15 + TailwindCSS demo dashboard for Trinity Guardian (ETHGlobal Tokyo 2026). Tells the product story in 4 screens: agent picker (role states from ENS), seller picker (spam/legit risk legible before paying), payment flow (live 3-layer journey with verdict chips), and the World ID moment (interactive approve/deny on soft-fail — deny is a first-class outcome). Persistent: spend meter vs dailyCap, ENS role badge, payment log. Starts from mock fixtures matching the event contracts; swaps to real imports as features land on dev. SRS: FR-50..FR-55, FR-60..FR-63.",
+  "userStories": [
+    {
+      "id": "UI-001",
+      "title": "Dashboard shell and project scaffold",
+      "description": "As a visitor, I want a clean dashboard layout so the 4 screens and persistent elements have a home.",
+      "acceptanceCriteria": [
+        "Next.js 15 + TailwindCSS project at src/ui/ boots with pnpm dev",
+        "src/ui/app/page.tsx renders main dashboard layout",
+        "Mock fixtures at src/ui/mocks/{agent-events,merchants,agents}.ts match imported type contracts",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-50. Can start immediately — mock-first strategy, no dependency on other branches."
+    },
+    {
+      "id": "UI-002",
+      "title": "Screen 1 — Agent picker with role states",
+      "description": "As a demo presenter, I want to pick which agent acts (momo: active role vs rogue: revoked), so selecting a revoked agent visibly changes payment outcomes (kill switch demo).",
+      "acceptanceCriteria": [
+        "AgentPicker lists 2+ agents with name, subname ([agent].trinityguard.eth), perTxMax, dailyCap",
+        "Revoked agent shows red REVOKED badge; active shows green ACTIVE",
+        "Selecting revoked agent causes later payments to hard-fail at ENS layer (Act 4)",
+        "Uses guardian.readPolicy() when live, mock agents array until then",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-53. Agents differ by EAC spend role + ENS text records."
+    },
+    {
+      "id": "UI-003",
+      "title": "Screen 2 — Seller picker with spam warning",
+      "description": "As a user, I want merchants displayed with spam/scam flags visible BEFORE I commit to paying, so risk is legible upfront.",
+      "acceptanceCriteria": [
+        "SellerPicker lists merchants from GET /merchants (mock until seller lands)",
+        "Spam merchant visually distinct: red border/icon/label",
+        "Spam reason shown ('Reported rugpull / scam entity') via tooltip or inline",
+        "Each merchant card shows name, description, endpoint prices",
+        "User can see risk BEFORE clicking buy",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-50. Consumes MerchantInfo from task-seller."
+    },
+    {
+      "id": "UI-004",
+      "title": "Screen 3 — Payment flow with verdict chips",
+      "description": "As a viewer, I want a live feed of the 3-layer journey with green/yellow/red verdicts, so I can watch the trust stack work in real time.",
+      "acceptanceCriteria": [
+        "PaymentFlow renders live PaymentEvent stream from usePaymentEvents hook",
+        "LayerCard per layer: ENS gate → Intercepta → caps, each with VerdictChip",
+        "VerdictChip: green=pass, yellow=soft_fail, red=hard_fail",
+        "Success state: tx hash + 'Settled onchain' badge",
+        "Failure state: reason shown prominently",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-50, FR-51. Consumes PaymentEvent from task-agent + GuardianVerdict layers from task-guardian."
+    },
+    {
+      "id": "UI-005",
+      "title": "Screen 4 — World ID approve/deny panel",
+      "description": "As an agent owner, I want an interactive approve/deny panel when soft-fail occurs, so the human moment of the demo is tangible — and deny is a valid outcome, not an error.",
+      "acceptanceCriteria": [
+        "WorldIdPanel appears on approval_requested event",
+        "Shows amount, payTo address, escalation reason",
+        "Approve button → payment proceeds (single use)",
+        "Deny button → payment refused, rendered as a legitimate demo outcome",
+        "Mock handler until World sandbox wired",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-54. Wire to guardian.requestApproval() when live."
+    },
+    {
+      "id": "UI-006",
+      "title": "Persistent elements: spend meter, role badge, payment log",
+      "description": "As a viewer, I want ambient state always visible — spend vs cap, agent role, history — so the dashboard feels alive between actions.",
+      "acceptanceCriteria": [
+        "SpendMeter shows $X.XX / $50.00 with progress bar (color shifts at 50%/80%)",
+        "RoleBadge shows ACTIVE (green) or REVOKED (red) for current agent",
+        "PaymentLog lists history: timestamp, resource, status, amount",
+        "All update live from payment events",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "FR-52, FR-53."
+    },
+    {
+      "id": "UI-007",
+      "title": "Demo acts walkthrough end-to-end",
+      "description": "As a judge, I want to run all 4 demo acts through the UI, so the full story is demonstrable without a terminal.",
+      "acceptanceCriteria": [
+        "Act 1: momo → weather → paid with tx hash",
+        "Act 2: momo → data (spam) → Intercepta red → refused with reason",
+        "Act 3: momo → compute ($7) → soft-fail → World ID panel → approve or deny both work",
+        "Act 4: rogue (revoked) → any seller → ENS hard-fail immediately",
+        "All four acts reproducible on demand",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "FR-60..FR-63. Depends on all three backend branches merged to dev for full flow; mock-first before that."
+    }
+  ]
+}

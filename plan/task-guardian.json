@@ -1,0 +1,105 @@
+{
+  "project": "Trinity Guardian",
+  "branchName": "feature/guardian",
+  "description": "The 3-layer trust stack middleware for Trinity Guardian (ETHGlobal Tokyo 2026): Layer 1 ENS gate (EAC spend role + com.trinityguard.* text records on Sepolia), Layer 2 Intercepta checkpoint (live quick-scan-address / scan-token API), Layer 3 World ID approver (sandbox.auth.world.org, soft-fail escalation, server-side proof validation). Ordered checks, hard/soft fail semantics, fail-closed on every error path. Ports POC guardian.ts as skeleton with pluggable screen() providers. SRS: FR-10..FR-16, FR-20..FR-27, FR-30..FR-36, FR-40..FR-47, FR-70..FR-74.",
+  "userStories": [
+    {
+      "id": "GU-001",
+      "title": "Guardian core: typed verdicts and ordered pipeline",
+      "description": "As an agent, I want checkPolicy(reqs, dailySpend) to run the 3 layers in order and return a typed GuardianVerdict, so I know whether to sign, escalate, or refuse.",
+      "acceptanceCriteria": [
+        "src/guardian/index.ts exports createGuardian(config): Guardian with checkPolicy, requestApproval, readPolicy",
+        "GuardianVerdict { decision: pass|soft_fail|hard_fail, reasons: string[], layers: LayerResult[] } with per-layer detail (ens/intercepta/caps/worldId)",
+        "Layers execute in order: ENS → Intercepta → caps → (World ID via requestApproval)",
+        "Stops at first hard_fail — subsequent layers do not run",
+        "Returns soft_fail when any layer soft-fails (over perTxMax, yellow verdict, non-allowlisted payTo)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-10..FR-12. Port POC guardian.ts checkPolicy() as the skeleton; GuardianVerdict type is the contract consumed by task-agent and task-ui."
+    },
+    {
+      "id": "GU-002",
+      "title": "Layer 1 — ENS gate: EAC role and text records",
+      "description": "As an owner, I want the spend permission and policy limits to live on-chain (EAC role + text records on [agent].trinityguard.eth), so revoking role is a trustless kill switch.",
+      "acceptanceCriteria": [
+        "src/guardian/ens.ts reads EAC 'spend' role via eth_call on Sepolia RPC",
+        "Revoked/missing role → hard_fail immediately (kill switch — Demo Act 4)",
+        "Reads com.trinityguard.perTxMax, com.trinityguard.dailyCap, com.trinityguard.asset from resolver text records",
+        "readPolicy(subname) returns PolicyFromENS for UI display",
+        "ENS read failure → hard_fail (fail-closed)",
+        "Subname pattern: [agent].trinityguard.eth",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-20..FR-23, FR-24 (kill switch MUST), FR-25 (expiry SHOULD). Depends on ENSv2 contracts deployed on Sepolia — mock role read until infra lands."
+    },
+    {
+      "id": "GU-003",
+      "title": "Layer 2 — Intercepta live screening",
+      "description": "As a guardian, I want to call the live Intercepta API on payTo and asset before signing, so flagged scam addresses and lookalike tokens are blocked.",
+      "acceptanceCriteria": [
+        "src/guardian/intercepta.ts calls quick-scan-address on payTo and scan-token on asset (live API, Bearer auth)",
+        "Red verdict → hard_fail with Intercepta's reason string preserved",
+        "Yellow verdict → soft_fail",
+        "API timeout/unreachable → soft_fail (never auto-pass)",
+        "Reason displayed in verdict details for UI",
+        "No mocked Intercepta data in final build (FR-36)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "FR-30..FR-36. Base URL TBD from key onboarding docs — request key on day 0. Mock with POC blocklist until key arrives."
+    },
+    {
+      "id": "GU-004",
+      "title": "Caps check against on-chain limits",
+      "description": "As a guardian, I want to compare amount against perTxMax and dailySpend+amount against dailyCap (both from ENS text records), so spending stays within mandate.",
+      "acceptanceCriteria": [
+        "src/guardian/caps.ts checks amount > perTxMax → soft_fail reason",
+        "dailySpend + amount > dailyCap → hard_fail",
+        "Uses limits from Layer 1's ENS read (not hardcoded)",
+        "CapsLayerDetails exposes amount/perTxMax/dailySpend/dailyCap/overPerTx/overDaily for UI meter",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-22, FR-71, FR-72. dailySpend passed in by agent (accumulator owned by task-agent per SRS FR-73)."
+    },
+    {
+      "id": "GU-005",
+      "title": "Layer 3 — World ID approval flow",
+      "description": "As an owner, I want to approve or deny soft-failed payments via World ID for Agents, so a human is the final gate for risky payments.",
+      "acceptanceCriteria": [
+        "src/guardian/worldid.ts implements requestApproval(reqs, reasons): Promise<boolean>",
+        "Request includes amount, payTo, escalation reason",
+        "Uses World ID for Agents sandbox (sandbox.auth.world.org)",
+        "Server-side proof validation before returning true (backend, not client)",
+        "Approval is single-use — does not blanket-approve future payments",
+        "Deny → returns false, payment refused with logged reason (Demo Act 3)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "FR-40..FR-47. Register app on sandbox day 0. Fallback per SRS: IDKit mini app if sandbox setup stalls."
+    },
+    {
+      "id": "GU-006",
+      "title": "Fail-closed semantics across all layers",
+      "description": "As a security reviewer, I want every error/timeout path to result in refusal or human escalation — never an automatic payment — so the system is safe by default.",
+      "acceptanceCriteria": [
+        "Intercepta timeout → soft_fail (escalate to human)",
+        "ENS read failure → hard_fail",
+        "World ID proof validation failure → treated as deny",
+        "No code path returns pass as a fallback for an exception",
+        "Unit test or scripted check covers each fail-closed path",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "NFR-20 (revised), NFR-21, NFR-22. Fail-closed is the demo's core security claim."
+    }
+  ]
+}
