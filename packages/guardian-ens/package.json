@@ -9,7 +9,9 @@
   "test:watch": "vitest",
   "rpc:check": "node --env-file=.env.local --experimental-strip-types scripts/check-rpc.ts",
   "ens:check": "node --env-file=.env.local --experimental-strip-types scripts/check-ens.ts",
-  "wallet:check": "node --env-file=.env.local --experimental-strip-types scripts/check-wallet.ts"
+  "wallet:check": "node --env-file=.env.local --experimental-strip-types scripts/check-wallet.ts",
+  "ens:commit": "node --env-file=.env.local --experimental-strip-types scripts/commit-name.ts",
+  "ens:register": "node --env-file=.env.local --experimental-strip-types scripts/register-name.ts"
   },
   "devEngines": {
     "packageManager": {
