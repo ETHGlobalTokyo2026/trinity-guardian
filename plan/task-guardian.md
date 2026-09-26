@@ -11,10 +11,11 @@
 ### In scope
 
 - **Layer 1 — ENS (The Gate):**
-  - Read EAC `spend` role via `eth_call` (Sepolia)
-  - Read text records: `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset`
-  - Kill switch: revoked role → hard fail immediately
-  - Agent subname pattern: `[agent].trinityguard.eth`
+  - Read on-chain payment authority for `<agent>.agents.trinityguard.eth` on Ethereum Sepolia
+  - Missing or revoked authority → hard fail immediately, before Intercepta
+  - Do not read `perTxMax`, `dailyCap`, or `asset` from ENS text records
+  - Do not call a built-in role named `spend`. The revoke encoding must be verified on the deployed UserRegistry and PermissionedResolver before any contract call is written
+  - Agent subname pattern: `[agent].agents.trinityguard.eth`
 
 - **Layer 2 — Intercepta (The Checkpoint):**
   - `quick-scan-address` on payTo (live API)
@@ -30,7 +31,8 @@
   - Deny path must work (Demo Act 3)
 
 - **Cross-cutting:**
-  - Ordered checks: ENS → Intercepta → (caps) → World ID
+  - Ordered checks: ENS authority → Intercepta → caps (Guardian state) → World ID
+  - A revoked or missing payment authority stops the pipeline immediately
   - Stop at first hard failure
   - Fail-closed: any error/timeout → soft_fail (never auto-pass)
   - Port POC `guardian.ts` skeleton with pluggable `screen()` providers
@@ -58,11 +60,15 @@ export interface LayerResult {
 }
 
 export interface ENSLayerDetails {
-  roleActive: boolean;
+  authorityActive: boolean;
+  subname: string;
+}
+
+export interface AppPolicy {
   perTxMax: bigint;
   dailyCap: bigint;
   allowedAsset: string;
-  subname: string;
+  allowlist: string[];
 }
 
 export interface InterceptaLayerDetails {
@@ -97,11 +103,9 @@ export interface GuardianVerdict {
   worldId?: WorldIdLayerDetails;
 }
 
-export interface PolicyFromENS {
-  roleActive: boolean;
-  perTxMax: bigint;
-  dailyCap: bigint;
-  allowedAsset: string;
+export interface PaymentAuthority {
+  authorityActive: boolean;
+  subname: string;
 }
 ```
 
@@ -109,7 +113,7 @@ export interface PolicyFromENS {
 // src/guardian/index.ts
 
 import type { PaymentRequirements } from "../agent/types";
-import type { GuardianVerdict, PolicyFromENS } from "./types";
+import type { GuardianVerdict, PaymentAuthority, AppPolicy } from "./types";
 
 export interface Guardian {
   /**
@@ -131,10 +135,13 @@ export interface Guardian {
   ): Promise<boolean>;
 
   /**
-   * Read policy from ENS without running full check.
-   * Useful for UI to display current limits.
+   * Read on-chain payment authority without running Intercepta.
+   * Limits are not on ENS. Use readAppPolicy() for perTxMax, dailyCap, asset, and allowlist.
    */
-  readPolicy(agentSubname: string): Promise<PolicyFromENS>;
+  readAuthority(agentSubname: string): Promise<PaymentAuthority>;
+
+  /** Limits and allowlist from Guardian application state. */
+  readAppPolicy(agentSubname: string): Promise<AppPolicy>;
 }
 
 export function createGuardian(config: GuardianConfig): Guardian;
@@ -145,7 +152,7 @@ export interface GuardianConfig {
   interceptaBaseUrl: string;
   worldAppId: string;
   worldAction: string;
-  agentSubname: string;       // e.g., "momo.trinityguard.eth"
+  agentSubname: string;       // e.g., "momo.agents.trinityguard.eth"
 }
 ```
 
@@ -163,9 +170,9 @@ export interface GuardianConfig {
 | # | Deliverable | SRS FR |
 |---|-------------|--------|
 | 1 | `src/guardian/index.ts` — `createGuardian()` factory | FR-10 |
-| 2 | `src/guardian/ens.ts` — Layer 1: EAC role + text record reader | FR-20, FR-21, FR-22, FR-23 |
+| 2 | `src/guardian/ens.ts` — Layer 1: on-chain payment authority. No text-record limits. No presumed `spend` role | FR-20, FR-21, FR-23, FR-24 |
 | 3 | `src/guardian/intercepta.ts` — Layer 2: `quick-scan-address`, `scan-token` | FR-30, FR-31, FR-32 |
-| 4 | `src/guardian/caps.ts` — Cap checks (perTxMax, dailyCap) | FR-22, FR-71 |
+| 4 | `src/guardian/caps.ts` — Cap checks against Guardian application state | FR-22, FR-71 |
 | 5 | `src/guardian/worldid.ts` — Layer 3: approval request + proof validation | FR-40, FR-41, FR-42, FR-43, FR-44, FR-45 |
 | 6 | `src/guardian/check.ts` — Ordered pipeline: ENS → Intercepta → caps → WorldID | FR-10, FR-11, FR-12 |
 | 7 | `src/guardian/types.ts` — All verdict/layer types | FR-12 |
@@ -179,9 +186,11 @@ export interface GuardianConfig {
 ## Acceptance criteria
 
 1. **Layer 1 — ENS gate:**
-   - `checkPolicy()` returns `hard_fail` immediately when `spend` role is revoked
-   - Reads `perTxMax`, `dailyCap`, `asset` from text records
-   - Demo Act 4: kill switch blocks payment that would otherwise pass
+   - `checkPolicy()` returns `hard_fail` immediately when on-chain payment authority is missing or revoked
+   - Later layers do not run
+   - `perTxMax`, `dailyCap`, and `asset` come from Guardian application state, not ENS text records
+   - Demo Act 4: kill switch blocks a payment that screening would have allowed
+   - The revoke call is not `hasRole(subname, "spend")` until that call is verified on the deployed contracts
 
 2. **Layer 2 — Intercepta:**
    - Calls live `quick-scan-address` API (no mock in final build)
@@ -191,7 +200,8 @@ export interface GuardianConfig {
 3. **Layer 2 — Caps:**
    - Amount > perTxMax → `soft_fail`
    - dailySpend + amount > dailyCap → `hard_fail`
-   - Demo Act 3: $7.00 triggers soft_fail (perTxMax $5)
+   - Uses limits from Guardian application state, not from an ENS text record
+   - Demo Act 3: $7.00 triggers soft_fail when perTxMax is $5 in Guardian state
 
 4. **Layer 3 — World ID:**
    - Soft_fail triggers `requestApproval()`
@@ -250,7 +260,7 @@ gh pr create --base dev --title "feat(guardian): 3-layer trust stack (ENS → In
 ```bash
 # ENS (Layer 1)
 ENS_RPC_URL="https://rpc.sepolia.org"
-ENS_SUBNAME="momo.trinityguard.eth"
+ENS_SUBNAME="momo.agents.trinityguard.eth"
 
 # Intercepta (Layer 2)
 INTERCEPTA_API_KEY="..."
@@ -265,21 +275,11 @@ WORLD_ACTION="..."
 
 ### ENS Layer
 
-```typescript
-// src/guardian/ens.ts
-import { createPublicClient, http } from "viem";
-import { sepolia } from "viem/chains";
+Do not implement `hasRole(subname, "spend")` or `text(namehash, key)` for limits. Those calls are not verified on this deployment.
 
-const client = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
+`src/guardian/ens.ts` reads payment authority for `<agent>.agents.trinityguard.eth` on Ethereum Sepolia. The read and the revoke transaction are unspecified until they are checked against the deployed UserRegistry (`0x5B115dAFCeEcBe5d77506b1Ec8B0A017B7357174`) and PermissionedResolver (`0xf23345070E24cb42E0A87323F75b84a34d9D33f6`). Current scripts only publish an ETH address (coin type `60`) and register leaves with role bitmap `0`.
 
-async function readEACRole(subname: string): Promise<boolean> {
-  // eth_call to EAC contract: hasRole(subname, "spend")
-}
-
-async function readTextRecord(subname: string, key: string): Promise<string> {
-  // eth_call to resolver: text(namehash(subname), key)
-}
-```
+Caps use `readAppPolicy()`, which returns Guardian application state.
 
 ### Intercepta Layer
 
@@ -320,7 +320,7 @@ async function checkPolicy(reqs: PaymentRequirements, dailySpend: bigint): Promi
   layers.push(intercepta);
   if (intercepta.decision === "hard_fail") return finalize("hard_fail", layers);
   
-  // Layer 2b: Caps
+  // Layer 2b: Caps from Guardian application state, not ENS text records
   const caps = checkCaps(reqs, dailySpend, policy);
   layers.push(caps);
   if (caps.decision === "hard_fail") return finalize("hard_fail", layers);

@@ -1,14 +1,14 @@
 {
   "project": "Trinity Guardian",
   "branchName": "feature/guardian",
-  "description": "The 3-layer trust stack middleware for Trinity Guardian (ETHGlobal Tokyo 2026): Layer 1 ENS gate (EAC spend role + com.trinityguard.* text records on Sepolia), Layer 2 Intercepta checkpoint (live quick-scan-address / scan-token API), Layer 3 World ID approver (sandbox.auth.world.org, soft-fail escalation, server-side proof validation). Ordered checks, hard/soft fail semantics, fail-closed on every error path. Ports POC guardian.ts as skeleton with pluggable screen() providers. SRS: FR-10..FR-16, FR-20..FR-27, FR-30..FR-36, FR-40..FR-47, FR-70..FR-74.",
+  "description": "The 3-layer trust stack middleware for Trinity Guardian (ETHGlobal Tokyo 2026): Layer 1 ENS gate (on-chain payment authority for <agent>.agents.trinityguard.eth; limits stay in Guardian state; no presumed spend role), Layer 2 Intercepta checkpoint (live quick-scan-address / scan-token API), Layer 3 World ID approver (sandbox.auth.world.org, soft-fail escalation, server-side proof validation). Ordered checks, hard/soft fail semantics, fail-closed on every error path. Ports POC guardian.ts as skeleton with pluggable screen() providers. SRS: FR-10..FR-16, FR-20..FR-27, FR-30..FR-36, FR-40..FR-47, FR-70..FR-74.",
   "userStories": [
     {
       "id": "GU-001",
       "title": "Guardian core: typed verdicts and ordered pipeline",
       "description": "As an agent, I want checkPolicy(reqs, dailySpend) to run the 3 layers in order and return a typed GuardianVerdict, so I know whether to sign, escalate, or refuse.",
       "acceptanceCriteria": [
-        "src/guardian/index.ts exports createGuardian(config): Guardian with checkPolicy, requestApproval, readPolicy",
+        "src/guardian/index.ts exports createGuardian(config): Guardian with checkPolicy, requestApproval, readAuthority, readAppPolicy",
         "GuardianVerdict { decision: pass|soft_fail|hard_fail, reasons: string[], layers: LayerResult[] } with per-layer detail (ens/intercepta/caps/worldId)",
         "Layers execute in order: ENS → Intercepta → caps → (World ID via requestApproval)",
         "Stops at first hard_fail — subsequent layers do not run",
@@ -21,20 +21,21 @@
     },
     {
       "id": "GU-002",
-      "title": "Layer 1 — ENS gate: EAC role and text records",
-      "description": "As an owner, I want the spend permission and policy limits to live on-chain (EAC role + text records on [agent].trinityguard.eth), so revoking role is a trustless kill switch.",
+      "title": "Layer 1 — ENS gate: on-chain payment authority",
+      "description": "As an owner, I want a revocable payment authority on <agent>.agents.trinityguard.eth so a kill switch hard-fails before Intercepta. Spending limits stay in Guardian application state. The on-chain encoding is not a built-in role named spend.",
       "acceptanceCriteria": [
-        "src/guardian/ens.ts reads EAC 'spend' role via eth_call on Sepolia RPC",
-        "Revoked/missing role → hard_fail immediately (kill switch — Demo Act 4)",
-        "Reads com.trinityguard.perTxMax, com.trinityguard.dailyCap, com.trinityguard.asset from resolver text records",
-        "readPolicy(subname) returns PolicyFromENS for UI display",
+        "src/guardian/ens.ts reads on-chain payment authority for <agent>.agents.trinityguard.eth on Ethereum Sepolia",
+        "Revoked or missing authority → hard_fail immediately, before Intercepta (Demo Act 4)",
+        "Does not read com.trinityguard.perTxMax, dailyCap, or asset from resolver text records",
+        "Does not call hasRole(subname, \"spend\") unless that call has been verified on the deployed contracts",
+        "readAuthority(subname) returns authorityActive for the UI",
+        "readAppPolicy(subname) returns perTxMax, dailyCap, allowedAsset, and allowlist from Guardian state",
         "ENS read failure → hard_fail (fail-closed)",
-        "Subname pattern: [agent].trinityguard.eth",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "FR-20..FR-23, FR-24 (kill switch MUST), FR-25 (expiry SHOULD). Depends on ENSv2 contracts deployed on Sepolia — mock role read until infra lands."
+      "notes": "FR-20, FR-21, FR-23, FR-24, FR-70. Mechanism TBD against the deployed UserRegistry and PermissionedResolver. Current leaves use role bitmap 0 and an ETH address record only."
     },
     {
       "id": "GU-003",
@@ -55,12 +56,12 @@
     },
     {
       "id": "GU-004",
-      "title": "Caps check against on-chain limits",
-      "description": "As a guardian, I want to compare amount against perTxMax and dailySpend+amount against dailyCap (both from ENS text records), so spending stays within mandate.",
+      "title": "Caps check against Guardian application state",
+      "description": "As a guardian, I want to compare amount against perTxMax and dailySpend+amount against dailyCap from Guardian application state, so spending stays within mandate without ENS text records.",
       "acceptanceCriteria": [
         "src/guardian/caps.ts checks amount > perTxMax → soft_fail reason",
         "dailySpend + amount > dailyCap → hard_fail",
-        "Uses limits from Layer 1's ENS read (not hardcoded)",
+        "Uses limits from readAppPolicy(), not from an ENS text record and not from a hardcoded constant in the final build",
         "CapsLayerDetails exposes amount/perTxMax/dailySpend/dailyCap/overPerTx/overDaily for UI meter",
         "Typecheck passes"
       ],
