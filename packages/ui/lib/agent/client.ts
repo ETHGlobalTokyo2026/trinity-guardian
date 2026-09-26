@@ -8,9 +8,7 @@ import { consumeApproval, requestApproval, waitForApproval } from "../guardian/a
 import { agentAccount } from "./wallet";
 import { networkName } from "../chains";
 import type { Scenario } from "./scenarios";
-import { revokeSpendRole } from "../ens/admin";
-import { ownerConfigured } from "../ens/client";
-import { ensConfigured } from "../ens/names";
+import { agentIdentity } from "../ens/names";
 
 /**
  * The paying agent. It uses the stock x402 client, but every payment goes
@@ -21,7 +19,7 @@ import { ensConfigured } from "../ens/names";
  * produced, so a blocked payment is not "a payment that failed", it is a
  * payment that never existed.
  */
-export function createGuardedClient(runId: string) {
+export function createGuardedClient(runId: string, agentLabel?: string) {
   const client = new x402Client()
     .register(NETWORK, new ExactEvmScheme(agentAccount))
     // The Guardian owns spend limits; disable the SDK's own $1 default cap so
@@ -38,7 +36,7 @@ export function createGuardedClient(runId: string) {
       data: { paymentRequired, selected: req },
     });
 
-    const decision = await evaluate(runId, agentAccount.address, paymentRequired, req);
+    const decision = await evaluate(runId, agentAccount.address, paymentRequired, req, agentLabel);
 
     if (decision.verdict === "allow") return;
 
@@ -54,7 +52,7 @@ export function createGuardedClient(runId: string) {
       return { abort: true, reason: decision.reason };
     }
 
-    const approval = requestApproval(runId, decision, policy.agent);
+    const approval = requestApproval(runId, decision, agentLabel ?? policy.agent);
     const resolved = await waitForApproval(approval.id);
 
     if (resolved.status !== "approved") {
@@ -143,31 +141,18 @@ export type RunResult = {
 
 export async function runScenario(scenario: Scenario): Promise<RunResult> {
   const runId = newId("run");
+  const who = agentIdentity(scenario.agentLabel);
   const url = `${appBaseUrl()}${scenario.path}`;
   emit({
     runId,
     kind: "run.start",
     level: "info",
     title: scenario.title,
-    detail: `agent ${agentAccount.address} → GET ${scenario.path}`,
-    data: { scenario: scenario.id },
+    detail: `${who.name} ${agentAccount.address} → GET ${scenario.path}`,
+    data: { scenario: scenario.id, agent: who.name },
   });
 
-  if (scenario.preStep === "revoke-spend") {
-    if (!ensConfigured() || !ownerConfigured()) {
-      emit({ runId, kind: "ens", level: "warn", title: "Kill switch skipped — ENS owner key or registry not configured", detail: "set ENS_OWNER_PRIVATE_KEY, ENS_USER_REGISTRY, ENS_RESOLVER" });
-    } else {
-      emit({ runId, kind: "ens", level: "warn", title: "Owner is revoking the spend role on Sepolia…", detail: `revokeRoles(labelhash(agent), ROLE_SPEND, ${agentAccount.address})` });
-      try {
-        const tx = await revokeSpendRole(agentAccount.address);
-        emit({ runId, kind: "ens", level: "danger", title: "Spend role revoked on chain", detail: `tx ${tx}`, data: { tx } });
-      } catch (e) {
-        emit({ runId, kind: "error", level: "danger", title: "Revoke failed", detail: e instanceof Error ? e.message : String(e) });
-      }
-    }
-  }
-
-  const client = createGuardedClient(runId);
+  const client = createGuardedClient(runId, scenario.agentLabel);
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
   try {

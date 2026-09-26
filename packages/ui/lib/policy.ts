@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { INTERCEPTA_ENABLED, NETWORK, SELLER_ADDRESS, USDC_BASE_SEPOLIA } from "./config";
 import { ensGateConfigured, readOnChainMandate, type OnChainMandate } from "./guardian/ens";
-import { ENS_AGENT_LABEL } from "./ens/names";
+import { agentIdentity, ENS_AGENT_LABEL } from "./ens/names";
 import { envOr } from "./env";
 
 /**
@@ -59,13 +59,15 @@ export const fallbackPolicy: Policy = {
 export const policy = fallbackPolicy;
 
 /** Read the mandate from ENS (fresh, no cache), falling back to the static policy. */
-export async function loadMandate(agentAddress: `0x${string}`): Promise<Mandate> {
-  if (!ensGateConfigured()) return { ...fallbackPolicy, source: "fallback" };
-  const onChain = await readOnChainMandate(agentAddress);
+export async function loadMandate(agentAddress: `0x${string}`, agentLabel?: string): Promise<Mandate> {
+  const who = agentIdentity(agentLabel);
+  if (!ensGateConfigured()) return { ...fallbackPolicy, agent: who.label, source: "fallback" };
+  const onChain = await readOnChainMandate(agentAddress, who.label);
   const r = onChain.records;
   const chainAllow = onChain.counterparties.map((c) => c.address).filter((a): a is `0x${string}` => Boolean(a));
   return {
     ...fallbackPolicy,
+    agent: who.label,
     source: "ens",
     onChain,
     perTxMax: chainAmount(r.perTxMax, fallbackPolicy.perTxMax),

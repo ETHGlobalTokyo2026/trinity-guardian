@@ -19,7 +19,7 @@ const TONE: Record<GateTone, { color: string; soft: string; icon: string; dashed
 };
 
 const GATES = [
-  { eyebrow: "Layer 1 · 一", name: "ENS gate", sub: "momo.payguard.eth mandate" },
+  { eyebrow: "Layer 1 · 一", name: "ENS gate", sub: "ENS mandate" },
   { eyebrow: "Layer 2 · 二", name: "Intercepta", sub: "risk scans + policy checks" },
   { eyebrow: "Layer 3 · 三", name: "World ID", sub: "a verified human approves" },
 ] as const;
@@ -46,7 +46,64 @@ export type PipelineModel = {
   network?: string;
   /** no run yet: every node idle, no stamp */
   empty?: boolean;
+  /** On-chain name and text records shown under the Layer 1 gate. */
+  ensView?: EnsView;
 };
+
+export type EnsView = {
+  name?: string;
+  authority?: "active" | "revoked";
+  perTxMax?: string;
+  dailyCap?: string;
+};
+
+type OnChainBits = {
+  name?: string;
+  authority?: "active" | "revoked";
+  records?: { perTxMax?: string; dailyCap?: string };
+};
+
+function wholeAmount(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  if (/^\d+$/.test(v) && v.length > 6) {
+    const s = v.padStart(7, "0");
+    const int = s.slice(0, -6);
+    const frac = s.slice(-6).replace(/0+$/, "");
+    return frac ? `${int}.${frac}` : int;
+  }
+  return v;
+}
+
+export function ensGateLabel(view: EnsView | undefined): string {
+  if (!view?.name && !view?.authority && !view?.perTxMax && !view?.dailyCap) return "ENS mandate";
+  const head = view.name ? `${view.name} mandate` : "ENS mandate";
+  const facts = [
+    view.authority ? `authority ${view.authority}` : "",
+    view.perTxMax ? `≤ ${view.perTxMax}/tx` : "",
+    view.dailyCap ? `≤ ${view.dailyCap}/day` : "",
+  ].filter(Boolean);
+  return facts.length ? `${head} · ${facts.join(" · ")}` : head;
+}
+
+function ensViewFromRun(run: Run): EnsView | undefined {
+  let view: EnsView | undefined;
+  for (const e of run.events) {
+    const decision = e.data?.decision as GuardianDecision | undefined;
+    const fromCheck = decision?.checks?.find((c) => c.name === "ens.spendRole")?.data?.onChain as OnChainBits | undefined;
+    const fromEvent = e.kind === "ens" ? (e.data?.onChain as OnChainBits | undefined) : undefined;
+    const onChain = fromCheck ?? fromEvent;
+    const mandate = e.data?.mandate as { perTxMax?: string; dailyCap?: string } | undefined;
+    if (!onChain && !mandate) continue;
+    view = {
+      name: onChain?.name ?? view?.name,
+      authority: onChain?.authority ?? view?.authority,
+      perTxMax: wholeAmount(mandate?.perTxMax ?? onChain?.records?.perTxMax) ?? view?.perTxMax,
+      dailyCap: wholeAmount(mandate?.dailyCap ?? onChain?.records?.dailyCap) ?? view?.dailyCap,
+    };
+  }
+  return view;
+}
 
 function worst(events: FeedEvent[]): FeedEvent["level"] | null {
   if (events.length === 0) return null;
@@ -66,10 +123,12 @@ function resourceName(url: string | undefined): string {
 }
 
 /** Where the latest run stands at each of the three layers, derived from its feed events. */
-export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | undefined): PipelineModel {
+export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | undefined, mandate?: EnsView): PipelineModel {
+  const fromRun = run ? ensViewFromRun(run) : undefined;
+  const ensView = fromRun?.name ? fromRun : { ...mandate, ...fromRun };
   if (!run) {
     const idle: Gate = { tone: "idle", status: "waiting" };
-    return { gates: [idle, idle, idle], verdict: "screening", stopAt: 0, amount: "—", resource: "Quote", title: "No payment yet — pick a purchase to start", empty: true };
+    return { gates: [idle, idle, idle], verdict: "screening", stopAt: 0, amount: "—", resource: "Quote", title: "No payment yet — pick a purchase to start", empty: true, ensView };
   }
   const of = (...kinds: FeedEvent["kind"][]) => run.events.filter((e) => kinds.includes(e.kind));
   const decision = of("decision")[0]?.data?.decision as GuardianDecision | undefined;
@@ -82,7 +141,13 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
 
   const l1Level = worst(of("ens"));
   const l1: Gate =
-    l1Level === "danger" ? { tone: "fail", status: "gate closed" } : l1Level === "warn" ? { tone: "soft", status: "off-chain fallback" } : l1Level === "ok" ? { tone: "pass", status: "role held" } : { tone: "idle", status: "never ran" };
+    l1Level === "danger"
+      ? { tone: "fail", status: ensView.authority === "revoked" ? "authority revoked" : "gate closed" }
+      : l1Level === "warn"
+        ? { tone: "soft", status: "off-chain fallback" }
+        : l1Level === "ok"
+          ? { tone: "pass", status: ensView.authority === "active" ? "authority active" : "role held" }
+          : { tone: "idle", status: "never ran" };
 
   // Layer 1 checks (ENS role, mandate) are emitted as policy events too; keep them out of Layer 2
   const l2Events = of("policy", "screen.address", "screen.token", "screen.message").filter((e) => {
@@ -130,7 +195,7 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
   const outcomeText = { paid: "paid", hold: `held${where}`, refused: `refused${where}`, failed: "not settled", screening: "screening…" }[verdict];
   const name = run.title.replace(/^\d+\s*·\s*/, "");
   const amountText = amountAtomic ? ` · ${fmt(amountAtomic)} ${decision?.quote.amountDisplay.split(" ").pop() ?? "USDC"}` : "";
-  return { gates, verdict, stopAt, amount, resource, title: `${name}${amountText} — ${outcomeText}`, network: decision?.quote.network ?? quoteEv?.network };
+  return { gates, verdict, stopAt, amount, resource, title: `${name}${amountText} — ${outcomeText}`, network: decision?.quote.network ?? quoteEv?.network, ensView };
 }
 
 /**
@@ -143,7 +208,13 @@ export function Pipeline({ model }: { model: PipelineModel }) {
   const outcome = model.verdict === "paid" && model.network ? { ...base, sub: `${base.sub} on ${networkName(model.network)}` } : base;
   const nodes = [
     { kind: "quote" as const, eyebrow: "Payment", name: model.resource, sub: "the agent asks to pay", tone: "guard" as GateTone, status: undefined as string | undefined },
-    ...GATES.map((g, i) => ({ kind: "gate" as const, ...g, tone: model.gates[i].tone, status: model.gates[i].status })),
+    ...GATES.map((g, i) => ({
+      kind: "gate" as const,
+      ...g,
+      sub: i === 0 ? ensGateLabel(model.ensView) : g.sub,
+      tone: model.gates[i].tone,
+      status: model.gates[i].status,
+    })),
     { kind: "outcome" as const, eyebrow: "Outcome", name: outcome.name, sub: outcome.sub, tone: outcome.tone, status: undefined },
   ];
   const connectorTone = (i: number): GateTone => {

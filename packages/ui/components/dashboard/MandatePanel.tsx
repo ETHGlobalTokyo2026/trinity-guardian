@@ -66,10 +66,16 @@ export function MandatePanel({
             </span>
             <span className={`inline-flex items-center gap-1.5 rounded-full border-[1.5px] bg-sheet px-3 py-1 text-sm font-bold ${gateOn ? "border-allow text-allow" : "border-deny text-deny"}`}>
               <span aria-hidden>{gateOn ? "✓" : "✕"}</span>
-              {gateOn ? "spend role active" : oc.error ? "unreadable" : oc.expired ? "expired" : oc.status !== "registered" ? oc.status : "spend role revoked"}
+              {gateOn ? (oc.authority === "active" ? "authority active" : "spend role active") : oc.error ? "unreadable" : oc.expired ? "expired" : oc.status !== "registered" ? oc.status : oc.authority === "revoked" ? "authority revoked" : "spend role revoked"}
             </span>
           </div>
-          {!gateOn && !oc.error && <p className="text-[15px] font-bold leading-snug text-deny">Gate closed. Layer 1 refuses every payment until the spend role is restored.</p>}
+          {!gateOn && !oc.error && (
+            <p className="text-[15px] font-bold leading-snug text-deny">
+              {oc.authority === "revoked"
+                ? "Gate closed. Layer 1 refuses every payment while authority is revoked on chain."
+                : "Gate closed. Layer 1 refuses every payment until the spend role is restored."}
+            </p>
+          )}
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3.5 gap-y-1.5 text-sm leading-snug [&>dt]:whitespace-nowrap [&>dt]:text-ink-2">
             <dt>Registry</dt>
             <dd>
@@ -85,6 +91,12 @@ export function MandatePanel({
               </a>{" "}
               <span className="text-ink-3">(PermissionedResolver, text records)</span>
             </dd>
+            {oc.authority && (
+              <>
+                <dt>Authority</dt>
+                <dd className="mono">{oc.authority}</dd>
+              </>
+            )}
             <dt>Subname expires</dt>
             <dd className="mono">{oc.expiry ? new Date(oc.expiry * 1000).toLocaleString([], { hour12: false }) : "—"}</dd>
             {oc.records.agentEndpointWeb && (

@@ -29,10 +29,11 @@ export async function evaluate(
   payer: `0x${string}`,
   paymentRequired: PaymentRequired,
   req: PaymentRequirements,
+  agentLabel?: string,
 ): Promise<GuardianDecision> {
   const checks: Check[] = [];
   const amountAtomic = BigInt(req.amount);
-  const policy: Mandate = await loadMandate(payer);
+  const policy: Mandate = await loadMandate(payer, agentLabel);
   emitGate(runId, policy);
   const quote = {
     resource: paymentRequired.resource?.url ?? "",
@@ -70,34 +71,7 @@ export async function evaluate(
   };
 
   /* LAYER 1 · ENS gate */
-  const oc = policy.onChain;
-  if (policy.source === "ens" && oc) {
-    const gateOk = !oc.error && oc.status === "registered" && oc.spendRole && !oc.expired;
-    checks.push({
-      name: "ens.spendRole",
-      status: oc.error ? "soft_fail" : gateOk ? "pass" : "hard_fail",
-      detail: oc.error
-        ? `could not read ${oc.name} from Sepolia (${oc.error}); escalating to the owner`
-        : oc.status !== "registered"
-          ? `${oc.name} is ${oc.status} in registry ${oc.registry}`
-          : oc.expired
-            ? `${oc.name} expired ${new Date(oc.expiry * 1000).toISOString()} — mandate lapsed on chain`
-            : oc.spendRole
-              ? oc.authority
-                ? `${oc.name} authority is ${oc.authority} on Sepolia (registry ${oc.registry})`
-                : `${oc.name} holds the spend role for ${payer} (registry ${oc.registry})`
-              : oc.authority === "revoked"
-                ? `authority revoked on chain for ${oc.name} — kill switch is on`
-                : `spend role revoked on chain for ${payer} — kill switch is on`,
-      data: { onChain: oc },
-    });
-  } else {
-    checks.push({
-      name: "ens.spendRole",
-      status: "skipped",
-      detail: "no ENS registry configured — running on the off-chain fallback mandate",
-    });
-  }
+  checks.push(ensSpendCheck(policy, payer));
   emitCheck(runId, checks.at(-1)!);
   const gateFailed = checks.at(-1)!.status === "hard_fail";
 
@@ -175,12 +149,47 @@ export async function evaluate(
   }
   void gateFailed;
 
-  /* verdict */
+  /* verdict — the first hard fail wins, so a closed ENS gate denies before Intercepta */
+  const outcome = openingDenial(checks);
+  return finish(outcome.verdict, outcome.reason);
+}
+
+export function ensSpendCheck(policy: Mandate, payer: string): Check {
+  const oc = policy.onChain;
+  if (policy.source === "ens" && oc) {
+    const gateOk = !oc.error && oc.status === "registered" && oc.spendRole && !oc.expired;
+    return {
+      name: "ens.spendRole",
+      status: oc.error ? "soft_fail" : gateOk ? "pass" : "hard_fail",
+      detail: oc.error
+        ? `could not read ${oc.name} from Sepolia (${oc.error}); escalating to the owner`
+        : oc.status !== "registered"
+          ? `${oc.name} is ${oc.status} in registry ${oc.registry}`
+          : oc.expired
+            ? `${oc.name} expired ${new Date(oc.expiry * 1000).toISOString()} — mandate lapsed on chain`
+            : oc.spendRole
+              ? oc.authority
+                ? `${oc.name} authority is ${oc.authority} on Sepolia (registry ${oc.registry})`
+                : `${oc.name} holds the spend role for ${payer} (registry ${oc.registry})`
+              : oc.authority === "revoked"
+                ? `authority revoked on chain for ${oc.name} — kill switch is on`
+                : `spend role revoked on chain for ${oc.name} — kill switch is on`,
+      data: { onChain: oc },
+    };
+  }
+  return {
+    name: "ens.spendRole",
+    status: "skipped",
+    detail: "no ENS registry configured — running on the off-chain fallback mandate",
+  };
+}
+
+export function openingDenial(checks: Check[]): { verdict: GuardianDecision["verdict"]; reason: string } {
   const hard = checks.find((c) => c.status === "hard_fail");
-  if (hard) return finish("deny", `${hard.name}: ${hard.detail}`);
+  if (hard) return { verdict: "deny", reason: `${hard.name}: ${hard.detail}` };
   const soft = checks.filter((c) => c.status === "soft_fail");
-  if (soft.length) return finish("ask_human", soft.map((c) => `${c.name}: ${c.detail}`).join(" | "));
-  return finish("allow", "all checks passed");
+  if (soft.length) return { verdict: "ask_human", reason: soft.map((c) => `${c.name}: ${c.detail}`).join(" | ") };
+  return { verdict: "allow", reason: "all checks passed" };
 }
 
 function emitGate(runId: string, m: Mandate) {
@@ -190,15 +199,12 @@ function emitGate(runId: string, m: Mandate) {
     return;
   }
   const ok = !oc.error && oc.status === "registered" && oc.spendRole && !oc.expired;
+  const closed = oc.status !== "registered" ? oc.status : oc.expired ? "expired" : oc.authority === "revoked" ? "authority revoked" : "spend role revoked";
   emit({
     runId,
     kind: "ens",
     level: oc.error ? "warn" : ok ? "ok" : "danger",
-    title: oc.error
-      ? `ENS gate: could not read ${oc.name}`
-      : ok
-        ? `ENS gate: ${oc.name} holds spend role`
-        : `ENS gate: ${oc.name} ${oc.status !== "registered" ? oc.status : oc.expired ? "expired" : "spend role revoked"}`,
+    title: oc.error ? `ENS gate: could not read ${oc.name}` : ok ? `ENS gate: ${oc.name} holds spend role` : `ENS gate: ${oc.name} ${closed}`,
     detail: oc.error
       ? oc.error
       : `registry ${oc.registry} · expires ${new Date(oc.expiry * 1000).toISOString()} · perTxMax ${m.perTxMax} · dailyCap ${m.dailyCap} · allowlist ${m.allowlistNames.join(", ") || "—"} · ${oc.latencyMs}ms`,

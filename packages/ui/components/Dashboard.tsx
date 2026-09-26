@@ -10,7 +10,7 @@ import { Header } from "./dashboard/Header";
 import { MandatePanel } from "./dashboard/MandatePanel";
 import { Pipeline, pipelineFor } from "./dashboard/Pipeline";
 import { ScenarioPanel } from "./dashboard/ScenarioPanel";
-import { approvalForRun, groupRuns, spendGateOpen, type Ledger } from "./dashboard/utils";
+import { approvalForRun, groupRuns, type Ledger } from "./dashboard/utils";
 
 type State = {
   events: FeedEvent[];
@@ -178,8 +178,12 @@ export default function Dashboard() {
 
   const showDisconnectedBanner = everConnected && !connected;
   const latest = runs[0];
-  const flow = pipelineFor(latest, latest ? approvalForRun(state.approvals, latest.runId) : undefined);
-  const canRestore = state.integrations.ens && state.integrations.ensOwnerKey && state.policy.source === "ens" && !spendGateOpen(state.policy);
+  const flow = pipelineFor(latest, latest ? approvalForRun(state.approvals, latest.runId) : undefined, {
+    name: state.policy.onChain?.name,
+    authority: state.policy.onChain?.authority,
+    perTxMax: state.policy.perTxMax,
+    dailyCap: state.policy.dailyCap,
+  });
 
   return (
     <div className="flex-1 flex flex-col">
@@ -225,7 +229,7 @@ export default function Dashboard() {
         {/* mobile order: scenarios, log, mandate. lg: log beside a stacked left column. xl: three columns */}
         <div className="grid items-start gap-4 sm:gap-7 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_380px]">
           <div className="lg:col-start-1 lg:row-start-1">
-            <ScenarioPanel scenarios={state.scenarios} interceptaEnabled={state.integrations.interceptaEnabled} agent={state.agent} running={running} onRun={run} onRestore={canRestore ? () => void mandateAction("grant") : undefined} />
+            <ScenarioPanel scenarios={state.scenarios} interceptaEnabled={state.integrations.interceptaEnabled} agent={state.agent} running={running} onRun={run} />
           </div>
           <div ref={feedRef} className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:row-span-1">
             <CheckpointLog runs={runs} approvals={state.approvals} />
