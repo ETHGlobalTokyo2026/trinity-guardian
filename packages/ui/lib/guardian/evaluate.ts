@@ -1,7 +1,7 @@
 import type { PaymentRequired, PaymentRequirements } from "@x402/core/types";
 import { loadMandate, policyHash, toAtomic, fromAtomic, type Mandate } from "../policy";
 import { getLedger, emit } from "../store";
-import { screenAddress, screenToken, screenMessage } from "./intercepta";
+import { interceptaEnabled, screenAddress, screenToken, screenMessage } from "./intercepta";
 import type { Check, GuardianDecision, Screening } from "./types";
 
 /**
@@ -15,6 +15,7 @@ import type { Check, GuardianDecision, Screening } from "./types";
  *     3. asset matches the mandate            -> hard fail
  *     4. payTo resolves to an allowlisted ENS name (ENSIP-26 identity) -> soft fail
  *     5. Intercepta: payTo, token, authorization -> hard fail if flagged, soft if no verdict
+ *        (skipped entirely unless INTERCEPTA_ENABLED=true)
  *     6. amount <= perTxMax                   -> soft fail
  *     7. dailySpend + amount <= dailyCap      -> hard fail
  *   LAYER 3 · World ID — the human approver (soft fails end up here)
@@ -125,39 +126,14 @@ export async function evaluate(
   emitCheck(runId, checks.at(-1)!);
 
   /* 3. Intercepta: address, token, authorization message (always run so the
-        dashboard shows the evidence even when a cheaper check already failed) */
-  const [addr, token, msg] = await Promise.all([
-    screenAddress(req.payTo),
-    screenToken(req.asset, req.network),
-    screenMessage(buildAuthorizationTypedData(payer, req), payer),
-  ]);
-  checks.push(screeningToCheck("intercepta.address", addr, req.payTo));
-  emit({
-    runId,
-    kind: "screen.address",
-    level: levelFor(addr),
-    title: `Intercepta ${addr.endpoint}: ${addr.verdict.toUpperCase()}`,
-    detail: addr.reasons.join("; ") || `${req.payTo} in ${addr.latencyMs}ms`,
-    data: { screening: addr },
-  });
-  checks.push(screeningToCheck("intercepta.token", token, req.asset));
-  emit({
-    runId,
-    kind: "screen.token",
-    level: levelFor(token),
-    title: `Intercepta ${token.endpoint}: ${token.verdict.toUpperCase()}`,
-    detail: token.reasons.join("; ") || `${req.asset} in ${token.latencyMs}ms`,
-    data: { screening: token },
-  });
-  checks.push(screeningToCheck("intercepta.message", msg, "authorization"));
-  emit({
-    runId,
-    kind: "screen.message",
-    level: levelFor(msg),
-    title: `Intercepta ${msg.endpoint}: ${msg.verdict.toUpperCase()}`,
-    detail: msg.reasons.join("; ") || `payment authorization in ${msg.latencyMs}ms`,
-    data: { screening: msg },
-  });
+        dashboard shows the evidence even when a cheaper check already failed).
+        Opt-in: when disabled it is recorded as skipped and never escalates. */
+  if (!interceptaEnabled()) {
+    checks.push({ name: "intercepta", status: "skipped", detail: "Intercepta screening is off (INTERCEPTA_ENABLED is not true)" });
+    emit({ runId, kind: "policy", level: "info", title: "policy.intercepta: skipped", detail: checks.at(-1)!.detail, data: { check: checks.at(-1) } });
+  } else {
+    await screenWithIntercepta(runId, checks, payer, req);
+  }
 
   /* 4. per-tx max */
   const perTxMax = toAtomic(policy.perTxMax);
@@ -238,6 +214,42 @@ function emitCheck(runId: string, c: Check) {
 
 function levelFor(s: Screening) {
   return s.verdict === "clear" ? "ok" : s.verdict === "flagged" ? "danger" : "warn";
+}
+
+/** Layer 2 live screening: payTo, token and the exact authorization, in parallel. */
+async function screenWithIntercepta(runId: string, checks: Check[], payer: `0x${string}`, req: PaymentRequirements) {
+  const [addr, token, msg] = await Promise.all([
+    screenAddress(req.payTo),
+    screenToken(req.asset, req.network),
+    screenMessage(buildAuthorizationTypedData(payer, req), payer),
+  ]);
+  checks.push(screeningToCheck("intercepta.address", addr, req.payTo));
+  emit({
+    runId,
+    kind: "screen.address",
+    level: levelFor(addr),
+    title: `Intercepta ${addr.endpoint}: ${addr.verdict.toUpperCase()}`,
+    detail: addr.reasons.join("; ") || `${req.payTo} in ${addr.latencyMs}ms`,
+    data: { screening: addr },
+  });
+  checks.push(screeningToCheck("intercepta.token", token, req.asset));
+  emit({
+    runId,
+    kind: "screen.token",
+    level: levelFor(token),
+    title: `Intercepta ${token.endpoint}: ${token.verdict.toUpperCase()}`,
+    detail: token.reasons.join("; ") || `${req.asset} in ${token.latencyMs}ms`,
+    data: { screening: token },
+  });
+  checks.push(screeningToCheck("intercepta.message", msg, "authorization"));
+  emit({
+    runId,
+    kind: "screen.message",
+    level: levelFor(msg),
+    title: `Intercepta ${msg.endpoint}: ${msg.verdict.toUpperCase()}`,
+    detail: msg.reasons.join("; ") || `payment authorization in ${msg.latencyMs}ms`,
+    data: { screening: msg },
+  });
 }
 
 function screeningToCheck(name: string, s: Screening, subject: string): Check {

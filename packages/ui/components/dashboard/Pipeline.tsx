@@ -81,7 +81,11 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
   const l1: Gate =
     l1Level === "danger" ? { tone: "fail", status: "gate closed" } : l1Level === "warn" ? { tone: "soft", status: "off-chain fallback" } : l1Level === "ok" ? { tone: "pass", status: "role held" } : { tone: "idle", status: "never ran" };
 
-  const l2Events = of("policy", "screen.address", "screen.token", "screen.message");
+  // Layer 1 checks (ENS role, mandate) are emitted as policy events too; keep them out of Layer 2
+  const l2Events = of("policy", "screen.address", "screen.token", "screen.message").filter((e) => {
+    const c = e.data?.check as Check | undefined;
+    return !c || !isLayer1Check(c);
+  });
   const l2Checks = (decision?.checks ?? []).filter((c) => !isLayer1Check(c));
   const firstLabel = (status: Check["status"]) => {
     const c = l2Checks.find((x) => x.status === status);
@@ -97,7 +101,8 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
   else if (!decision && run.verdict === "pending") l2 = { tone: "guard", status: "scanning…" };
   else if (l2Level === "danger") l2 = { tone: "fail", status: firstLabel("hard_fail") ?? "refused" };
   else if (l2Level === "warn") l2 = { tone: "soft", status: firstLabel("soft_fail") ?? "needs a human" };
-  else l2 = { tone: "pass", status: "all clear" };
+  // with INTERCEPTA_ENABLED off only the policy half of Layer 2 ran: say so rather than "all clear"
+  else l2 = { tone: "pass", status: l2Checks.some((c) => c.name === "intercepta" && c.status === "skipped") ? "policy ok · scans off" : "all clear" };
 
   let l3: Gate;
   if (approval) {
@@ -107,7 +112,7 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
         : approval.status === "approved"
           ? { tone: "pass", status: "owner approved" }
           : { tone: "fail", status: approval.status === "expired" ? "request expired" : "owner denied" };
-  } else if (run.verdict === "allow") l3 = { tone: "skip", status: "not needed" };
+  } else if (run.verdict === "allow" || decision?.verdict === "allow") l3 = { tone: "skip", status: "not needed" };
   else l3 = { tone: "idle", status: "never ran" };
 
   const gates: [Gate, Gate, Gate] = [l1, l2, l3];

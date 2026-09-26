@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Pill } from "./primitives";
 
-type Integrations = { intercepta: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean; ens: boolean; ensOwnerKey: boolean; adminTokenRequired: boolean };
+type Integrations = { intercepta: boolean; interceptaEnabled: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean; ens: boolean; ensOwnerKey: boolean; adminTokenRequired: boolean };
 
 export function Header({
   connected,
@@ -39,7 +39,11 @@ export function Header({
         <ul aria-label="Integration status" className="flex flex-wrap items-center gap-2 sm:ml-auto">
           <Pill on={connected} live label={connected ? "live feed" : "feed disconnected"} />
           <Pill on={integrations.ens} warn={!integrations.ens} label={integrations.ens ? "ENS mandate on Sepolia" : "ENS mandate: off-chain fallback"} />
-          <Pill on={integrations.intercepta} label={integrations.intercepta ? "Intercepta key loaded" : "Intercepta key missing"} />
+          {integrations.interceptaEnabled ? (
+            <Pill on={integrations.intercepta} label={integrations.intercepta ? "Intercepta key loaded" : "Intercepta key missing"} />
+          ) : (
+            <Pill on off label="Intercepta off" />
+          )}
           <Pill
             on={integrations.worldId}
             warn={!integrations.worldId && integrations.worldDevBypass}

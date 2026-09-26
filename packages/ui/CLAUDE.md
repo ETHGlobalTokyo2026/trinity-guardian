@@ -27,7 +27,8 @@ Scenario ids: `weather`, `scam-payto`, `over-cap`, `lookalike-token`, `kill-swit
 - **Self-contained.** Although `package.json` depends on `@trinity/agent|guardian|seller`, nothing under `app/`, `lib/` or `scripts/` imports them; the UI carries its own Guardian in `lib/guardian/`. Don't assume a change in `packages/guardian` affects this app.
 - **Payment flow:** `app/api/agent/run` → `lib/agent/client.ts` (stock `@x402/fetch` client) → seller returns 402 → `onBeforePaymentCreation` hook → `lib/guardian/evaluate.ts` → allow (sign EIP-3009), deny (`{ abort: true }`, no signature ever exists), or ask_human (park on World ID approval).
 - **Check order is the product** (documented at the top of `evaluate.ts`): ENS gate (spend role, expiry) → asset → allowlist → Intercepta → per-tx max → daily cap. Hard fails have no per-transaction override; soft fails go to World ID. Keep this order and the hard/soft split when editing.
-- **Fail closed.** Missing key, timeout, non-200 or malformed response from Intercepta = "no verdict" → escalate to the owner, never pass.
+- **Intercepta is opt-in.** Only `INTERCEPTA_ENABLED=true` runs Layer 2 screening; otherwise it is recorded as a `skipped` check and never escalates.
+- **Fail closed (when enabled).** Missing key, timeout, non-200 or malformed response from Intercepta = "no verdict" → escalate to the owner, never pass.
 - **Sellers** are real x402 endpoints in `app/api/services/*/route.ts`, wrapped with `withX402` via `lib/seller/server.ts`.
 - **State** lives in `lib/store.ts`: hoisted on `globalThis` (survives HMR) and mirrored to `data/state.json` (gitignored). Live feed is SSE at `app/api/events`.
 - **Chains:** payments on Base Sepolia USDC (`eip155:84532`, public facilitator); mandate on Ethereum Sepolia ENSv2 (`payguard.eth` / `momo.payguard.eth`).

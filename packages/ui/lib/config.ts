@@ -32,6 +32,8 @@ export const LOOKALIKE_USDC_ADDRESS = (process.env.LOOKALIKE_USDC_ADDRESS ??
 
 export const AGENT_PRIVATE_KEY = (process.env.AGENT_PRIVATE_KEY?.trim() || undefined) as `0x${string}` | undefined;
 
+/** Layer 2 risk screening is opt-in: only INTERCEPTA_ENABLED=true calls Intercepta. */
+export const INTERCEPTA_ENABLED = process.env.INTERCEPTA_ENABLED === "true";
 export const INTERCEPTA_API_KEY = process.env.INTERCEPTA_API_KEY;
 export const INTERCEPTA_BASE_URL = process.env.INTERCEPTA_BASE_URL ?? "https://api.intercepta.io";
 
