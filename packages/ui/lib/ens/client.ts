@@ -1,8 +1,9 @@
 import { createPublicClient, createWalletClient, http } from "viem";
 import { sepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
+import { envOr } from "../env";
 
-export const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com";
+export const SEPOLIA_RPC_URL = envOr("SEPOLIA_RPC_URL", "https://ethereum-sepolia-rpc.publicnode.com");
 
 const g = globalThis as unknown as { __ensPublic?: ReturnType<typeof createPublicClient> };
 if (!g.__ensPublic) {

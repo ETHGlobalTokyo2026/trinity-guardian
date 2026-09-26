@@ -34,6 +34,7 @@ import {
 import { ENS_AGENT_LABEL, ENS_AGENT_NAME, ENS_PARENT_LABEL, ENS_PARENT_NAME, ENS_SELLER_LABEL, ENS_SELLER_NAME } from "../../lib/ens/names";
 import { encodeSetAddress, encodeSetText, grantSpendRole, renewAgentName, revokeSpendRole, setPolicyRecord } from "../../lib/ens/admin";
 import { readOnChainMandate } from "../../lib/guardian/ens";
+import { envOr } from "../../lib/env";
 
 const DAY = 86400;
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
@@ -156,11 +157,11 @@ async function setup() {
   );
 
   // 4. the mandate itself + ENSIP-26 agent records, one multicall
-  const perTxMax = process.env.POLICY_PER_TX_MAX ?? "5";
-  const dailyCap = process.env.POLICY_DAILY_CAP ?? "50";
-  const asset = process.env.POLICY_ASSET ?? "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-  const network = process.env.X402_NETWORK ?? "eip155:84532";
-  const appUrl = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const perTxMax = envOr("POLICY_PER_TX_MAX", "5");
+  const dailyCap = envOr("POLICY_DAILY_CAP", "50");
+  const asset = envOr("POLICY_ASSET", "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
+  const network = envOr("X402_NETWORK", "eip155:84532");
+  const appUrl = envOr("APP_BASE_URL", "http://localhost:3000");
   const calls: Hex[] = [
     encodeSetAddress(ENS_AGENT_NAME, agent),
     encodeSetText(ENS_AGENT_NAME, MANDATE_KEYS.perTxMax, perTxMax),

@@ -1,7 +1,9 @@
+import { envOr } from "../env";
+
 /** Name layout: <agentLabel>.<parentLabel>.eth, sellers as <label>.<parentLabel>.eth */
-export const ENS_PARENT_LABEL = process.env.ENS_PARENT_LABEL ?? "payguard";
-export const ENS_AGENT_LABEL = process.env.ENS_AGENT_LABEL ?? "momo";
-export const ENS_SELLER_LABEL = process.env.ENS_SELLER_LABEL ?? "weather";
+export const ENS_PARENT_LABEL = envOr("ENS_PARENT_LABEL", "payguard");
+export const ENS_AGENT_LABEL = envOr("ENS_AGENT_LABEL", "momo");
+export const ENS_SELLER_LABEL = envOr("ENS_SELLER_LABEL", "weather");
 export const ENS_PARENT_NAME = `${ENS_PARENT_LABEL}.eth`;
 export const ENS_AGENT_NAME = `${ENS_AGENT_LABEL}.${ENS_PARENT_NAME}`;
 export const ENS_SELLER_NAME = `${ENS_SELLER_LABEL}.${ENS_PARENT_NAME}`;
