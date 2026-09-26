@@ -1,31 +1,40 @@
 import { NextResponse } from "next/server";
-import { getApproval, redactApproval } from "@/lib/store";
-import { cancelApproval, devResolveApproval } from "@/lib/guardian/approval";
-import { isOwner, requireAdmin } from "@/lib/admin-auth";
+import {
+  cancelApproval,
+  consumeApproval,
+  publicApproval,
+  rejectClientApprovalFlag,
+  submitProof,
+} from "@/lib/guardian/approval";
+import { getApproval } from "@/lib/store";
+import type { IdKitResult } from "@/lib/guardian/worldid";
 
-export async function GET(req: Request, ctx: RouteContext<"/api/approvals/[id]">) {
+export async function GET(_req: Request, ctx: RouteContext<"/api/approvals/[id]">) {
   const { id } = await ctx.params;
-  const a = getApproval(id);
-  if (!a) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(isOwner(req) ? a : redactApproval(a));
+  const approval = getApproval(id);
+  if (!approval) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json(publicApproval(approval));
 }
 
-/**
- * Owner actions from the dashboard. Approval itself never comes through here:
- * it only happens when the backend validates a World ID token from the device
- * grant. The browser can cancel (deny), nothing more.
- */
 export async function POST(req: Request, ctx: RouteContext<"/api/approvals/[id]">) {
-  const denied = requireAdmin(req);
-  if (denied) return denied;
   const { id } = await ctx.params;
-  const body = (await req.json().catch(() => ({}))) as { action?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    approved?: unknown;
+    idkitResponse?: IdKitResult;
+  };
   try {
-    if (body.action === "cancel") return NextResponse.json(cancelApproval(id));
-    if (body.action === "dev-approve") return NextResponse.json(devResolveApproval(id, "approved"));
-    if (body.action === "dev-deny") return NextResponse.json(devResolveApproval(id, "denied"));
+    rejectClientApprovalFlag(body);
+    if (body.action === "cancel") return NextResponse.json(publicApproval(cancelApproval(id)));
+    if (body.action === "proof") {
+      if (!body.idkitResponse) return NextResponse.json({ error: "idkitResponse is required" }, { status: 400 });
+      return NextResponse.json(publicApproval(await submitProof(id, body.idkitResponse)));
+    }
+    if (body.action === "consume") return NextResponse.json(publicApproval(consumeApproval(id)));
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "refused";
+    const status = message === "approval not found" ? 404 : 409;
+    return NextResponse.json({ error: message }, { status });
   }
 }

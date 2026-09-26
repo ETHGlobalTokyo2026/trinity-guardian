@@ -99,8 +99,6 @@ export default function Dashboard() {
     });
     es.addEventListener("approval", (m) => {
       const a = JSON.parse((m as MessageEvent).data) as ApprovalRequest;
-      // SSE cannot carry the owner token: fetch the unredacted approval over an authorized request
-      if (a.worldId?.redacted && ownerTokenRef.current) void load();
       setState((s) => {
         if (!s) return s;
         const rest = s.approvals.filter((x) => x.id !== a.id);

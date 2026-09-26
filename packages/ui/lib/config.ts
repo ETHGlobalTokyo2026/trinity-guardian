@@ -35,19 +35,8 @@ export const AGENT_PRIVATE_KEY = (process.env.AGENT_PRIVATE_KEY?.trim() || undef
 export const INTERCEPTA_API_KEY = process.env.INTERCEPTA_API_KEY;
 export const INTERCEPTA_BASE_URL = process.env.INTERCEPTA_BASE_URL ?? "https://api.intercepta.io";
 
-/**
- * World ID for Agents — the World ID OpenID Connect provider.
- * Sandbox for the hackathon: https://sandbox.auth.world.org (portal at /portal).
- * The device-authorization grant is what lets a headless agent ask its human
- * owner for a fresh World ID proof + explicit approval.
- */
-export const WORLD_ISSUER = process.env.WORLD_ISSUER ?? "https://sandbox.auth.world.org";
-export const WORLD_CLIENT_ID = process.env.WORLD_CLIENT_ID ?? "";
-export const WORLD_CLIENT_SECRET = process.env.WORLD_CLIENT_SECRET ?? "";
-/** Optional: pairwise `sub` of the owner. If set, approvals from any other human are rejected. */
-export const WORLD_OWNER_SUB = process.env.WORLD_OWNER_SUB ?? "";
-/** Dev-only escape hatch so the pipeline can be exercised before a sandbox client exists. */
-export const WORLD_DEV_BYPASS = process.env.WORLD_DEV_BYPASS === "true";
+/** IDKit sandbox. The signing key is read only inside lib/guardian/worldid.ts. */
+export const WORLD_ENVIRONMENT = "sandbox" as const;
 
 /** How long the agent waits for the human owner before giving up. */
 export const APPROVAL_TIMEOUT_MS = Number(process.env.APPROVAL_TIMEOUT_MS ?? 5 * 60_000);

@@ -25,8 +25,6 @@ export interface GuardianVerdict {
   layers?: unknown[]; // richer per-layer detail once guardian package lands
 }
 
-export type AskHuman = (reqs: PaymentRequirements, reasons: string[]) => Promise<boolean>;
-
 export interface SpendState {
   spendToday: bigint;
   txCount: number;
@@ -62,8 +60,25 @@ export interface PaymentEvent {
 
 export type PaymentEventHandler = (event: PaymentEvent) => void;
 
+export type ApprovalCreate = {
+  agent: string;
+  amount: string;
+  asset: string;
+  payTo: string;
+  network: string;
+  reason: string;
+  resource: string;
+  decision: "soft_fail";
+};
+
+export interface ApprovalClient {
+  create(input: ApprovalCreate): Promise<{ id: string }>;
+  wait(id: string): Promise<{ status: string }>;
+  consume(id: string): Promise<{ ok: true }>;
+}
+
 export interface BuyOptions {
-  askHuman?: AskHuman;
+  approval?: ApprovalClient;
   onEvent?: PaymentEventHandler;
 }
 

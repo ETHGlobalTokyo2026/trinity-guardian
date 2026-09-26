@@ -1,7 +1,7 @@
 // CLI demo runner — 4 demo acts (AG-006)
-import readline from "node:readline/promises";
+import { httpApprovalClient } from "../src/approval-client.js";
 import { createAgent } from "../src/index.js";
-import type { AskHuman, PaymentEvent } from "../src/types.js";
+import type { PaymentEvent } from "../src/types.js";
 
 const C = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -15,21 +15,7 @@ const usdc = (u?: string) => `$${(Number(u ?? 0) / 1e6).toFixed(2)}`;
 
 const banner = (t: string) => console.log(`\n${C.bold(C.cyan(`── ${t}`))}${C.dim("─".repeat(Math.max(1, 60 - t.length)))}`);
 
-// World ID [mock] — Layer 3 until @trinity/guardian lands
-const askOwner: AskHuman = async (reqs, reasons) => {
-  console.log(`\n${C.yellow("┌── human approval required (World ID [mock]) ──")}`);
-  console.log(`│  ${usdc(reqs.amount)} → ${reqs.payTo}`);
-  reasons.forEach((r) => console.log(`│  why: ${r}`));
-  console.log(C.yellow("└───────────────────────────────────────────────"));
-  if (!process.stdin.isTTY) {
-    console.log(C.red("  owner (auto, non-interactive): DENY"));
-    return false;
-  }
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const a = (await rl.question(C.yellow("  approve / deny > "))).trim().toLowerCase();
-  rl.close();
-  return a.startsWith("a") || a.startsWith("y");
-};
+const approval = httpApprovalClient((line) => console.log(C.yellow(line)));
 
 const key = process.env.EVM_PRIVATE_KEY as `0x${string}` | undefined;
 if (!key) {
@@ -53,7 +39,7 @@ banner("Act 2 — flagged payTo (hard block)");
 results.push(await agent.buy("/data"));
 
 banner("Act 3 — over per-tx cap (human approval)");
-results.push(await agent.buy("/compute", { askHuman: askOwner }));
+results.push(await agent.buy("/compute", { approval }));
 
 banner("Act 4 — kill switch");
 const rogue = await createAgent("rogue.agents.trinityguard.eth", key);

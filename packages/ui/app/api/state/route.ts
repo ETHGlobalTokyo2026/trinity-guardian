@@ -5,7 +5,6 @@ import { scenarios } from "@/lib/agent/scenarios";
 import { agentAccount, agentKeyIsEphemeral } from "@/lib/agent/wallet";
 import { interceptaConfigured } from "@/lib/guardian/intercepta";
 import { worldIdConfigured, worldIdDevBypass } from "@/lib/guardian/worldid";
-import { WORLD_ISSUER } from "@/lib/config";
 import { ownerConfigured } from "@/lib/ens/client";
 import { ensConfigured } from "@/lib/ens/names";
 import { adminTokenRequired, isOwner } from "@/lib/admin-auth";
@@ -21,7 +20,7 @@ export async function GET(req: Request) {
     integrations: {
       intercepta: interceptaConfigured(),
       worldId: worldIdConfigured(),
-      worldIssuer: WORLD_ISSUER,
+      worldIssuer: "sandbox",
       worldDevBypass: worldIdDevBypass(),
       ens: ensConfigured(),
       ensOwnerKey: ownerConfigured(),

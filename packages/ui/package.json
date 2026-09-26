@@ -8,12 +8,14 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --import tsx --test test/approval.test.ts",
     "mandate": "tsx scripts/ens/mandate.ts"
   },
   "dependencies": {
     "@trinity/agent": "workspace:*",
     "@trinity/guardian": "workspace:*",
     "@trinity/seller": "workspace:*",
+    "@worldcoin/idkit-core": "4.3.0",
     "@x402/core": "^2.27.0",
     "@x402/evm": "^2.27.0",
     "@x402/fetch": "^2.27.0",
@@ -30,7 +32,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^18.0.4",
+    "dotenv": "18.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",

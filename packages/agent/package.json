@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/approval-gate.test.ts",
     "demo": "node --env-file=../../.env --import tsx cli/demo.ts"
   },
   "dependencies": {

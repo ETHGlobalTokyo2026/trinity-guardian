@@ -1,209 +1,228 @@
 import { APPROVAL_TIMEOUT_MS } from "../config";
-import { addApproval, bus, emit, getApproval, newId, updateApproval, type ApprovalRequest } from "../store";
-import type { GuardianDecision } from "./types";
-import { pollDeviceApproval, startDeviceApproval, worldIdConfigured, worldIdDevBypass } from "./worldid";
 import { fromAtomic } from "../policy";
+import { addApproval, bus, emit, getApproval, newId, updateApproval, type ApprovalRequest, type ApprovalStatus } from "../store";
+import type { GuardianDecision } from "./types";
+import {
+  approvalSignal,
+  proofMatches,
+  signApproval,
+  verifyWorldId,
+  type IdKitResult,
+  type WorldLaunch,
+} from "./worldid";
 
-/** device_code is secret: kept only in process memory, keyed by approval id. */
-const g = globalThis as unknown as { __deviceCodes?: Map<string, string> };
-if (!g.__deviceCodes) g.__deviceCodes = new Map();
-const deviceCodes = g.__deviceCodes;
+export type ApprovalBinding = {
+  runId: string;
+  agent: string;
+  amount: string;
+  asset: string;
+  payTo: string;
+  network: string;
+  reason: string;
+  resource: string;
+  decision: "soft_fail";
+};
 
-/**
- * Human-in-the-loop escalation. The Guardian creates a pending request, the
- * owner sees it on the dashboard, proves they are a real human with World ID,
- * and approves (with a one-time limit) or denies. The agent's payment thread
- * is parked on a promise until then.
- */
-export function requestApproval(runId: string, decision: GuardianDecision): ApprovalRequest {
+export type PublicWorld = {
+  appId: string;
+  rpId: string;
+  action: string;
+  signal: string;
+  environment: WorldLaunch["environment"];
+  rpContext: WorldLaunch["rpContext"];
+};
+
+export type PublicApproval = {
+  id: string;
+  status: ApprovalStatus;
+  agent: string;
+  amount: string;
+  asset: string;
+  payTo: string;
+  network: string;
+  reason: string;
+  resource: string;
+  createdAt: string;
+  expiresAt: string;
+  consumed: boolean;
+  nullifier?: string;
+  world: PublicWorld;
+};
+
+export function publicApproval(a: ApprovalRequest): PublicApproval {
+  return {
+    id: a.id,
+    status: a.status,
+    agent: a.agent,
+    amount: a.quote.amountAtomic,
+    asset: a.quote.asset,
+    payTo: a.quote.payTo,
+    network: a.quote.network,
+    reason: a.reason,
+    resource: a.quote.resource,
+    createdAt: a.createdAt,
+    expiresAt: a.expiresAt,
+    consumed: Boolean(a.consumedAt),
+    nullifier: a.nullifier,
+    world: {
+      appId: a.launch.appId,
+      rpId: a.launch.rpId,
+      action: a.launch.action,
+      signal: a.launch.signal,
+      environment: a.launch.environment,
+      rpContext: a.launch.rpContext,
+    },
+  };
+}
+
+export function rejectClientApprovalFlag(body: { approved?: unknown; action?: string }) {
+  if (body.approved === true || body.action === "dev-approve" || body.action === "dev-deny") {
+    throw new Error("client approval flags are not accepted");
+  }
+}
+
+export function createSoftFailApproval(input: ApprovalBinding): ApprovalRequest {
+  if (input.decision !== "soft_fail") throw new Error("approval is only for soft_fail");
   const now = Date.now();
-  const a: ApprovalRequest = {
-    id: newId("apr"),
-    runId,
+  const id = newId("apr");
+  const reason = input.reason;
+  const signal = approvalSignal({
+    id,
+    agent: input.agent,
+    amount: input.amount,
+    asset: input.asset,
+    payTo: input.payTo,
+    reason,
+  });
+  const launch = signApproval(signal);
+  const signatureExpiry = launch.rpContext.expires_at * 1000;
+  const expiresAt = new Date(Math.min(now + APPROVAL_TIMEOUT_MS, signatureExpiry)).toISOString();
+  const decision: GuardianDecision = {
+    verdict: "ask_human",
+    reason,
+    checks: [{ name: "perTxMax", status: "soft_fail", detail: reason }],
+    quote: {
+      resource: input.resource,
+      payTo: input.payTo,
+      amountAtomic: input.amount,
+      amountDisplay: fromAtomic(input.amount),
+      asset: input.asset,
+      network: input.network,
+    },
+    policyHash: "",
+    mandateSource: "ens",
+    evaluatedAt: new Date(now).toISOString(),
+  };
+  const approval: ApprovalRequest = {
+    id,
+    runId: input.runId,
+    agent: input.agent,
     createdAt: new Date(now).toISOString(),
-    expiresAt: new Date(now + APPROVAL_TIMEOUT_MS).toISOString(),
+    expiresAt,
     status: "pending",
-    reason: decision.reason,
+    reason,
     decision,
     quote: decision.quote,
+    launch,
   };
-  addApproval(a);
+  addApproval(approval);
   emit({
-    runId,
+    runId: input.runId,
     kind: "approval.requested",
     level: "warn",
     title: "Waiting for owner — World ID approval requested",
-    detail: `${a.quote.amountDisplay} → ${a.quote.payTo}. ${decision.reason}`,
-    data: { approvalId: a.id, expiresAt: a.expiresAt },
+    detail: `${decision.quote.amountDisplay} → ${input.payTo}. ${reason}`,
+    data: { approvalId: id, expiresAt },
   });
-  void attachWorldId(a);
-  return a;
+  return approval;
 }
 
-/**
- * Start the World ID device-authorization grant for this approval and poll it
- * until the human approves, denies, or it expires.
- */
-async function attachWorldId(a: ApprovalRequest) {
-  if (!worldIdConfigured()) {
-    updateApproval(a.id, {
-      worldId: {
-        userCode: "—",
-        verificationUri: "",
-        verificationUriComplete: "",
-        expiresAt: a.expiresAt,
-        intervalSec: 0,
-        mode: worldIdDevBypass() ? "dev-bypass" : "unconfigured",
-        error: worldIdDevBypass()
-          ? "WORLD_CLIENT_ID/SECRET not set — dev bypass active"
-          : "WORLD_CLIENT_ID/SECRET not set — cannot ask the owner; request will expire",
-      },
-    });
-    return;
+export function requestApproval(runId: string, decision: GuardianDecision, agentName: string): ApprovalRequest {
+  if (decision.verdict !== "ask_human") throw new Error("approval is only for soft_fail");
+  if (decision.checks.some((check) => check.status === "hard_fail")) {
+    throw new Error("hard_fail cannot request approval");
   }
-  let device;
-  try {
-    device = await startDeviceApproval();
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    updateApproval(a.id, {
-      worldId: { userCode: "—", verificationUri: "", verificationUriComplete: "", expiresAt: a.expiresAt, intervalSec: 0, mode: "world-id", error },
-    });
-    emit({ runId: a.runId, kind: "error", level: "danger", title: "World ID device authorization failed", detail: error });
-    return;
-  }
-  deviceCodes.set(a.id, device.device_code);
-  const expiresAt = new Date(Date.now() + device.expires_in * 1000).toISOString();
-  updateApproval(a.id, {
-    worldId: {
-      userCode: device.user_code,
-      verificationUri: device.verification_uri,
-      verificationUriComplete: device.verification_uri_complete,
-      expiresAt,
-      intervalSec: device.interval,
-      mode: "world-id",
-      lastPoll: "authorization_pending",
-    },
+  return createSoftFailApproval({
+    runId,
+    agent: agentName,
+    amount: decision.quote.amountAtomic,
+    asset: decision.quote.asset,
+    payTo: decision.quote.payTo,
+    network: decision.quote.network,
+    reason: decision.reason,
+    resource: decision.quote.resource,
+    decision: "soft_fail",
   });
-  emit({
-    runId: a.runId,
-    kind: "approval.requested",
-    level: "info",
-    title: "World ID device code issued",
-    detail: "owner scans the QR on the dashboard with the sandbox World App",
-    data: { approvalId: a.id },
-  });
-
-  let intervalMs = Math.max(device.interval, 1) * 1000;
-  const deadline = Math.min(Date.parse(expiresAt), Date.parse(a.expiresAt));
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, intervalMs));
-    const current = getApproval(a.id);
-    if (!current || current.status !== "pending") return; // cancelled / expired elsewhere
-    let poll;
-    try {
-      poll = await pollDeviceApproval(device.device_code);
-    } catch (e) {
-      // signature / claim validation failure: treat as denied, never as approval
-      const error = e instanceof Error ? e.message : String(e);
-      finishWorldId(a, "denied", { error, lastPoll: "invalid_id_token" });
-      return;
-    }
-    switch (poll.status) {
-      case "pending":
-        updateApproval(a.id, { worldId: { ...current.worldId!, lastPoll: "authorization_pending" } });
-        continue;
-      case "slow_down":
-        intervalMs += 5000;
-        updateApproval(a.id, { worldId: { ...current.worldId!, lastPoll: "slow_down" } });
-        continue;
-      case "unavailable":
-        updateApproval(a.id, { worldId: { ...current.worldId!, lastPoll: "unavailable (503/429)" } });
-        continue;
-      case "approved":
-        finishWorldId(a, "approved", { sub: poll.sub, authTime: poll.authTime, acr: poll.acr, lastPoll: "approved" });
-        return;
-      case "denied":
-        finishWorldId(a, "denied", { lastPoll: "access_denied" });
-        return;
-      case "expired":
-        finishWorldId(a, "expired", { lastPoll: "expired_token" });
-        return;
-      case "invalid":
-        finishWorldId(a, "denied", { lastPoll: poll.error ?? "invalid_grant", error: poll.error });
-        return;
-    }
-  }
-  finishWorldId(a, "expired", { lastPoll: "deadline reached" });
 }
 
-function finishWorldId(
-  a: ApprovalRequest,
-  status: "approved" | "denied" | "expired",
-  extra: Partial<NonNullable<ApprovalRequest["worldId"]>>,
-) {
-  deviceCodes.delete(a.id);
-  const current = getApproval(a.id);
-  if (!current || current.status !== "pending") return;
-  updateApproval(a.id, {
+function settle(id: string, status: ApprovalStatus, error?: string, extra: Partial<ApprovalRequest> = {}) {
+  const current = getApproval(id);
+  if (!current || current.status !== "pending") return current;
+  const updated = updateApproval(id, {
     status,
     resolvedAt: new Date().toISOString(),
-    // one-time limit = exactly the quoted amount; the owner approved *this* payment, not a budget
-    approvedLimit: status === "approved" ? fromAtomic(a.quote.amountAtomic) : undefined,
-    worldId: { ...current.worldId!, ...extra },
+    error,
+    approvedLimit: status === "approved" ? fromAtomic(current.quote.amountAtomic) : undefined,
+    ...extra,
   });
+  if (!updated) return updated;
   emit({
-    runId: a.runId,
+    runId: updated.runId,
     kind: "approval.resolved",
     level: status === "approved" ? "ok" : "danger",
     title:
       status === "approved"
         ? "Owner APPROVED — World ID proof validated in backend"
         : status === "denied"
-          ? `Owner DENIED via World ID${extra.error ? " (validation failed)" : ""}`
-          : "World ID request EXPIRED — payment refused",
-    detail:
-      status === "approved"
-        ? `sub ${short(extra.sub ?? "")} · acr ${extra.acr ?? "?"} · auth_time ${extra.authTime ? new Date(extra.authTime * 1000).toISOString() : "?"}`
-        : extra.error ?? extra.lastPoll ?? "",
-    data: { approvalId: a.id, status, ...extra },
+          ? "Owner DENIED — payment refused"
+          : status === "expired"
+            ? "World ID request EXPIRED — payment refused"
+            : "World ID proof INVALID — payment refused",
+    detail: error ?? "",
+    data: { approvalId: id, status },
   });
-}
-
-/** Owner cancels from the dashboard: the protected action must not occur. */
-export function cancelApproval(id: string): ApprovalRequest {
-  const a = getApproval(id);
-  if (!a) throw new Error("approval not found");
-  if (a.status !== "pending") throw new Error(`approval already ${a.status}`);
-  deviceCodes.delete(id);
-  const updated = updateApproval(id, {
-    status: "denied",
-    resolvedAt: new Date().toISOString(),
-    worldId: { ...(a.worldId ?? { userCode: "—", verificationUri: "", verificationUriComplete: "", expiresAt: a.expiresAt, intervalSec: 0 }), mode: "cancelled", lastPoll: "cancelled" },
-  })!;
-  emit({ runId: a.runId, kind: "approval.resolved", level: "danger", title: "Owner CANCELLED the request — payment refused", data: { approvalId: id } });
   return updated;
 }
 
-/** Dev-only: resolve without a proof. Refuses to run when a real World ID client is configured. */
-export function devResolveApproval(id: string, decision: "approved" | "denied"): ApprovalRequest {
-  if (!worldIdDevBypass()) throw new Error("dev bypass is disabled");
-  const a = getApproval(id);
-  if (!a) throw new Error("approval not found");
-  if (a.status !== "pending") throw new Error(`approval already ${a.status}`);
-  const updated = updateApproval(id, {
-    status: decision,
-    resolvedAt: new Date().toISOString(),
-    approvedLimit: decision === "approved" ? fromAtomic(a.quote.amountAtomic) : undefined,
-    worldId: { ...(a.worldId ?? { userCode: "—", verificationUri: "", verificationUriComplete: "", expiresAt: a.expiresAt, intervalSec: 0 }), mode: "dev-bypass", lastPoll: decision },
-  })!;
-  emit({
-    runId: a.runId,
-    kind: "approval.resolved",
-    level: decision === "approved" ? "warn" : "danger",
-    title: `DEV BYPASS: owner ${decision} (no World ID proof)`,
-    data: { approvalId: id },
-  });
+export async function submitProof(id: string, proof: IdKitResult): Promise<ApprovalRequest> {
+  const current = getApproval(id);
+  if (!current) throw new Error("approval not found");
+  if (current.status !== "pending") throw new Error(`approval already ${current.status}`);
+  const mismatch = proofMatches(current.launch, proof);
+  if (mismatch) {
+    settle(id, "invalid", mismatch);
+    throw new Error(mismatch);
+  }
+  try {
+    const verified = await verifyWorldId(proof);
+    const updated = settle(id, "approved", undefined, { nullifier: verified.nullifier });
+    if (!updated || updated.status !== "approved") throw new Error("approval was not approved");
+    return updated;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "world id verify failed";
+    if (message.startsWith("approval")) throw error;
+    settle(id, "invalid", message);
+    throw new Error(message);
+  }
+}
+
+export function cancelApproval(id: string): ApprovalRequest {
+  const current = getApproval(id);
+  if (!current) throw new Error("approval not found");
+  if (current.status !== "pending") throw new Error(`approval already ${current.status}`);
+  const updated = settle(id, "denied", "cancelled");
+  if (!updated) throw new Error("approval not found");
+  return updated;
+}
+
+export function consumeApproval(id: string): ApprovalRequest {
+  const current = getApproval(id);
+  if (!current) throw new Error("approval not found");
+  if (Date.parse(current.expiresAt) < Date.now()) throw new Error("approval expired");
+  if (current.consumedAt) throw new Error("approval already consumed");
+  if (current.status !== "approved") throw new Error(`approval ${current.status}`);
+  const updated = updateApproval(id, { consumedAt: new Date().toISOString() });
+  if (!updated) throw new Error("approval not found");
   return updated;
 }
 
@@ -214,20 +233,18 @@ export function waitForApproval(id: string): Promise<ApprovalRequest> {
 
     const timeout = setTimeout(() => {
       bus.off("approval", onApproval);
-      const a = updateApproval(id, { status: "expired", resolvedAt: new Date().toISOString() });
-      if (a) resolve(a);
+      const current = getApproval(id);
+      if (current && current.status !== "pending") return resolve(current);
+      const expired = updateApproval(id, { status: "expired", resolvedAt: new Date().toISOString() });
+      if (expired) resolve(expired);
     }, APPROVAL_TIMEOUT_MS + 1000);
 
-    function onApproval(a: ApprovalRequest) {
-      if (a.id !== id || a.status === "pending") return;
+    function onApproval(approval: ApprovalRequest) {
+      if (approval.id !== id || approval.status === "pending") return;
       clearTimeout(timeout);
       bus.off("approval", onApproval);
-      resolve(a);
+      resolve(approval);
     }
     bus.on("approval", onApproval);
   });
-}
-
-function short(s: string) {
-  return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-4)}` : s;
 }
