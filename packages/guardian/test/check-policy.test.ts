@@ -26,7 +26,7 @@ function reqs(overrides: Partial<PaymentRequirements> = {}): PaymentRequirements
 
 function guardianFor(
   readPolicy: (subname: string) => Promise<Policy | null>,
-  isFlagged: (payTo: string) => boolean = () => false,
+  isFlagged: (payTo: string) => boolean | Promise<boolean> = () => false,
   agentSubname = MOMO,
 ) {
   return createGuardian({ agentSubname, readPolicy, isFlagged });
@@ -85,6 +85,18 @@ describe("checkPolicy", () => {
     assert.equal(verdict.decision, "hard_fail");
     assert.deepEqual(verdict.reasons, ["policy read failed"]);
     assert.equal(flagged, 0);
+  });
+
+  it("hard-fails when the Intercepta check throws", async () => {
+    const guardian = guardianFor(
+      async () => active,
+      async () => {
+        throw new Error("Intercepta mock unreachable");
+      },
+    );
+    const verdict = await guardian.checkPolicy(reqs(), 0n);
+    assert.equal(verdict.decision, "hard_fail");
+    assert.match(verdict.reasons[0] ?? "", /unreachable/);
   });
 
   it("flags a blocked payTo only after authority is active", async () => {

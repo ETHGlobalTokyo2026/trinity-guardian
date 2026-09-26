@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@trinity/intercepta": "workspace:*",
     "@x402/core": "^2.27.0",
     "@x402/evm": "^2.27.0",
     "@x402/express": "^2.27.0",

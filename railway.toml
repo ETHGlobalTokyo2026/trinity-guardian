@@ -3,6 +3,6 @@ builder = "RAILPACK"
 buildCommand = "pnpm install --frozen-lockfile"
 
 [deploy]
-startCommand = "pnpm --filter @trinity/seller start"
-healthcheckPath = "/merchants"
+startCommand = "sh scripts/railway-start.sh"
+healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"

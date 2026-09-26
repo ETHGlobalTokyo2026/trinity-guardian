@@ -20,11 +20,13 @@ export const FACILITATOR_URL = envOr("X402_FACILITATOR_URL", "https://x402.org/f
 export const SELLER_ADDRESS = envOr("SELLER_ADDRESS", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C") as `0x${string}`;
 
 /**
- * A real mainnet address carrying a scam / phishing flag in Intercepta's dataset.
- * Intercepta screens by address string, so a mainnet-flagged address is still
- * flagged when it shows up as the payTo of a Base Sepolia quote.
+ * payTo the scam scenario quotes. Prefer SCAM_PAYTO_ADDRESS; otherwise account B,
+ * which the Intercepta mock flags.
  */
-export const SCAM_PAYTO_ADDRESS = envOr("SCAM_PAYTO_ADDRESS", "0x0000000000000000000000000000000000000000") as `0x${string}`;
+export const SCAM_PAYTO_ADDRESS = envOr(
+  "SCAM_PAYTO_ADDRESS",
+  envOr("SELLER_ADDRESS_B", "0x0000000000000000000000000000000000000000"),
+) as `0x${string}`;
 
 /** A token that is *not* USDC but tries to look like it (used by the lookalike scenario). */
 export const LOOKALIKE_USDC_ADDRESS = envOr("LOOKALIKE_USDC_ADDRESS", "0x0000000000000000000000000000000000000000") as `0x${string}`;
