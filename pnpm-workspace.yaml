@@ -1,2 +1,7 @@
 packages:
   - "packages/*"
+# pnpm 11 blocks dependency build scripts by default. Both ship prebuilt
+# binaries as optional platform packages, so their install scripts aren't needed.
+allowBuilds:
+  esbuild: false
+  unrs-resolver: false
