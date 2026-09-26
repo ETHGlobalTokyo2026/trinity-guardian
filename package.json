@@ -2,5 +2,8 @@
   "name": "trinity-guardian",
   "private": true,
   "description": "3-layer trust stack for AI agent payments: ENS gate → Intercepta checkpoint → World ID approver (ETHGlobal Tokyo 2026)",
-  "packageManager": "pnpm@11.9.0"
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "start": "pnpm --filter @trinity/seller start"
+  }
 }
