@@ -37,7 +37,7 @@ if (!key) {
   process.exit(1);
 }
 
-const agent = await createAgent("momo", key);
+const agent = await createAgent("momo.agents.trinityguard.eth", key);
 agent.onPaymentEvent((e: PaymentEvent) => {
   const t = new Date(e.timestamp).toISOString().slice(11, 23);
   const color = e.type === "paid" ? "green" : e.type === "refused" ? "red" : e.type === "guardian_verdict" ? "cyan" : "dim";
@@ -55,9 +55,8 @@ results.push(await agent.buy("/data"));
 banner("Act 3 — over per-tx cap (human approval)");
 results.push(await agent.buy("/compute", { askHuman: askOwner }));
 
-// Act 4 (kill switch) requires the real ENS layer — placeholder until @trinity/guardian lands
-banner("Act 4 — kill switch (requires ENS layer — skipped in mock mode)");
-console.log(C.dim("  run with @trinity/guardian wired to demo revoked spend role"));
+banner("Act 4 — kill switch (skipped)");
+console.log(C.dim("  skipped because the resolver setter is still unverified, not because the kill switch was dropped"));
 
 banner("Summary");
 results.forEach((r, i) => {
