@@ -88,7 +88,7 @@
       "title": "CLI demo runner for 4 demo acts",
       "description": "As a presenter, I want a CLI runner that executes the 4 demo scenarios (pass, block, soft-fail, kill switch) so the demo works without the UI.",
       "acceptanceCriteria": [
-        "src/cli/demo.ts runs scenarios 1-4: /weather (pass), /data (block), /compute (soft-fail approval), revoked-role agent (kill switch)",
+        "src/cli/demo.ts runs scenarios 1-4: /weather (pass), /data (block), /compute (soft-fail approval), rogue.agents.trinityguard.eth with revoked on-chain payment authority (kill switch)",
         "Scenario 3 prompts approve/deny when TTY, auto-deny when not",
         "Summary table at end: status per scenario + spend today",
         "Exit code 0",
@@ -96,7 +96,7 @@
       ],
       "priority": 3,
       "passes": false,
-      "notes": "FR-60..FR-63. Port from POC demo.ts. Scenario 4 depends on guardian ENS layer landing."
+      "notes": "FR-60..FR-63. Act 4 waits on Guardian reading on-chain payment authority for rogue.agents.trinityguard.eth. Not an ENS text record and not a built-in spend role. Stays passes:false until that read exists."
     }
   ]
 }

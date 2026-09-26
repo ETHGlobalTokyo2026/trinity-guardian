@@ -137,7 +137,7 @@ export function createAgent(name: string, privateKey: `0x${string}`): Agent;
 | 5 | `spendControls.maxAmountPerPayment` SDK ceiling ($50) | FR-6 |
 | 6 | Spend accumulator with daily reset | FR-15, FR-16 |
 | 7 | Event emission (`onPaymentEvent`) for UI to subscribe | FR-50 |
-| 8 | `src/cli/demo.ts` — runner for 4 demo scenarios | FR-60–FR-63 |
+| 8 | `src/cli/demo.ts` — runner for 4 demo scenarios. Act 4 uses `rogue.agents.trinityguard.eth` once Guardian can read its on-chain payment authority | FR-60–FR-63 |
 | 9 | Types in `src/agent/types.ts` | — |
 
 ## Acceptance criteria
@@ -149,6 +149,7 @@ export function createAgent(name: string, privateKey: `0x${string}`): Agent;
 5. **Quote decode:** handles v2 format `{ x402Version, resource, accepts[] }` correctly (no crash on missing fields)
 6. **Daily reset:** spend accumulator resets when `window !== today` (ISO UTC date)
 7. **Network preference:** picks `eip155:84532` from accepts array when multiple networks offered
+8. **Act 4:** waits on Guardian reading the on-chain payment authority for `rogue.agents.trinityguard.eth`. It does not wait on an ENS text record or a built-in `spend` role. Until that read exists, the CLI skips Act 4.
 
 ## Git workflow
 
