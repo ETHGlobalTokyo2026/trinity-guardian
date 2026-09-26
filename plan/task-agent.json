@@ -16,7 +16,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "FR-1, FR-5, FR-6. Port from POC agent.ts. viem privateKeyToAccount for signer."
     },
     {
@@ -32,7 +32,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "FR-2, FR-3. POC agent.ts pickAccept() is the reference implementation."
     },
     {
@@ -49,7 +49,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "FR-4. Uses mock guardian until task-guardian lands: amount > 5M → soft_fail, scam addr → hard_fail, else pass."
     },
     {
@@ -64,7 +64,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "FR-15, FR-16. Storage is in-memory for MVP (on-chain accumulator is out of scope per SRS)."
     },
     {
@@ -80,7 +80,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "FR-50 (UI dependency). Contract-first: event types are the UI task's primary dependency on this task."
     },
     {

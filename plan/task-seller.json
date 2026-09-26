@@ -16,7 +16,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Port from POC seller.ts (verified E2E). Env: PORT=4020 default."
     },
     {
@@ -32,7 +32,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "FR-60, FR-61, FR-62. Env: SELLER_ADDRESS_A (safe), SELLER_ADDRESS_B (flagged)."
     },
     {
@@ -48,7 +48,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Primary new feature vs POC. UI task consumes this for the SellerPicker screen."
     },
     {
@@ -62,7 +62,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Types are the contract for task-ui imports."
     }
   ]
