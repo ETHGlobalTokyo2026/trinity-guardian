@@ -10,6 +10,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@trinity-guardian/ens':
+        specifier: workspace:*
+        version: link:../guardian-ens
       '@trinity/guardian':
         specifier: workspace:*
         version: link:../guardian
