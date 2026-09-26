@@ -7,6 +7,7 @@
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { createEnsClient, readPolicyText } from "@trinity-guardian/ens";
 import { createGuardian } from "@trinity/guardian";
 import { privateKeyToAccount } from "viem/accounts";
 import { decodeQuote, pickAccept } from "./quote.js";
@@ -28,20 +29,14 @@ export interface Agent {
   onPaymentEvent(handler: PaymentEventHandler): () => void;
 }
 
-// per-agent demo policies — momo: spend role active, rogue: revoked (kill switch, Act 4)
-// keyed by subname (full name from createAgent); swap point: chain reader per
-// migration/onchain-policy.md
-const DEMO_POLICIES: Record<string, { roleActive: boolean; perTxMax: bigint; dailyCap: bigint; allowedAsset: string }> = {
-  "momo.agents.trinityguard.eth": { roleActive: true, perTxMax: 5_000_000n, dailyCap: 50_000_000n, allowedAsset: "" },
-  "rogue.agents.trinityguard.eth": { roleActive: false, perTxMax: 0n, dailyCap: 0n, allowedAsset: "" },
-};
-
 const FLAGGED = new Set<string>(
   (process.env.SELLER_ADDRESS_B ? [process.env.SELLER_ADDRESS_B.toLowerCase()] : [])
 );
 
-function readDemoPolicy(subname: string) {
-  return Promise.resolve(DEMO_POLICIES[subname] ?? null); // null = authority missing → guardian hard_fails
+async function readOnchainPolicy(subname: string) {
+  const rpcUrl = process.env.SEPOLIA_RPC_URL;
+  if (!rpcUrl) throw new Error("SEPOLIA_RPC_URL is required");
+  return readPolicyText(createEnsClient(rpcUrl), subname);
 }
 
 export async function createAgent(name: string, privateKey: `0x${string}`): Promise<Agent> {
@@ -56,7 +51,7 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
   const guardian = createGuardian({
     agentSubname: name,
-    readPolicy: readDemoPolicy,
+    readPolicy: readOnchainPolicy,
     isFlagged: (payTo) => FLAGGED.has(payTo.toLowerCase()),
   });
 

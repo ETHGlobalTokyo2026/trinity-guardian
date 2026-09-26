@@ -14,7 +14,7 @@
 
 1. **Screen 1 — Agent Picker:**
    - Choose which agent acts
-   - Agents differ by on-chain role (spend role granted vs revoked)
+   - Agents differ by `com.trinityguard.authority` (`active` vs `revoked`)
    - Display ENS text records (perTxMax, dailyCap)
    - Selecting agent with revoked role visibly affects later outcomes
 
