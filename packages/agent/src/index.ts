@@ -76,7 +76,8 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
     },
 
     async buy(resource, opts = {}) {
-      const url = `http://127.0.0.1:${process.env.SELLER_PORT || 4020}${resource}`;
+      const seller = (process.env.SELLER_URL ?? `http://127.0.0.1:${process.env.SELLER_PORT || 4020}`).replace(/\/$/, "");
+      const url = `${seller}${resource}`;
       emit({ type: "quote_received", resource });
 
       const q = await fetch(url);

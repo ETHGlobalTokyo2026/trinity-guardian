@@ -49,8 +49,9 @@ app.get("/weather", (req, res) =>
 app.get("/data", (_req, res) => res.json({ dataset: "sanctioned-entity-graph", rows: 1234 }));
 app.get("/compute", (_req, res) => res.json({ result: "42", model: "mock-llm-7b" }));
 
-app.listen(PORT, () => {
-  console.log(`[x402-seller] http://127.0.0.1:${PORT}  (/weather $0.01 · /data $0.25 · /compute $7.00 · /merchants)`);
+const port = Number(PORT);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`[x402-seller] http://0.0.0.0:${port}  (/weather $0.01 · /data $0.25 · /compute $7.00 · /merchants)`);
   console.log(`             facilitator ${FACILITATOR} · ${NETWORK} (Base Sepolia)`);
   console.log(`             payTo A ${SAFE}${process.env.SELLER_ADDRESS_A ? "" : "  (recycle mode → agent wallet)"}`);
   console.log(`             payTo B ${SCAM}  (flagged)`);
