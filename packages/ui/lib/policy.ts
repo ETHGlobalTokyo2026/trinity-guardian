@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NETWORK, SELLER_ADDRESS, USDC_BASE_SEPOLIA } from "./config";
 import { ensGateConfigured, readOnChainMandate, type OnChainMandate } from "./guardian/ens";
 import { ENS_AGENT_LABEL } from "./ens/names";
+import { envOr } from "./env";
 
 /**
  * The owner-authored spending mandate the Guardian enforces before every signature.
@@ -42,12 +43,12 @@ export const fallbackPolicy: Policy = {
   asset: USDC_BASE_SEPOLIA,
   assetSymbol: "USDC",
   decimals: 6,
-  perTxMax: process.env.POLICY_PER_TX_MAX ?? "5",
-  dailyCap: process.env.POLICY_DAILY_CAP ?? "50",
+  perTxMax: envOr("POLICY_PER_TX_MAX", "5"),
+  dailyCap: envOr("POLICY_DAILY_CAP", "50"),
   allowlist: [SELLER_ADDRESS],
   allowlistNames: [],
   requireHumanIf: ["amount > perTxMax", "payTo not in allowlist", "no verdict from Intercepta"],
-  expires: process.env.POLICY_EXPIRES ?? "2026-09-28T00:00:00Z",
+  expires: envOr("POLICY_EXPIRES", "2026-09-28T00:00:00Z"),
 };
 
 /** Kept for code that only needs static shape info (decimals, symbol). Prefer loadMandate(). */
