@@ -3,6 +3,7 @@ import { loadMandate, policyHash, toAtomic, fromAtomic, type Mandate } from "../
 import { getLedger, emit } from "../store";
 import { interceptaEnabled, screenAddress, screenToken, screenMessage } from "./intercepta";
 import type { Check, GuardianDecision, Screening } from "./types";
+import { networkName } from "../chains";
 
 /**
  * Trinity Guardian. Runs *before* the agent signs anything. Three layers, in
@@ -103,8 +104,8 @@ export async function evaluate(
     name: "asset",
     status: assetOk ? "pass" : "hard_fail",
     detail: assetOk
-      ? `${policy.assetSymbol} on ${policy.network}`
-      : `quote asks for ${req.asset} on ${req.network}, policy only allows ${policy.assetSymbol} (${policy.asset}) on ${policy.network}`,
+      ? `${policy.assetSymbol} on ${networkName(policy.network)}`
+      : `quote asks for ${req.asset} on ${networkName(req.network)}, policy only allows ${policy.assetSymbol} (${policy.asset}) on ${networkName(policy.network)}`,
   });
   emitCheck(runId, checks.at(-1)!);
 

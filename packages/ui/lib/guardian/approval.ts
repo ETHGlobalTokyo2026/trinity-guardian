@@ -1,4 +1,4 @@
-import { APPROVAL_TIMEOUT_MS } from "../config";
+import { APPROVAL_TIMEOUT_MS, USDC_BASE_SEPOLIA } from "../config";
 import { fromAtomic } from "../policy";
 import { addApproval, bus, emit, getApproval, newId, updateApproval, type ApprovalRequest, type ApprovalStatus } from "../store";
 import type { GuardianDecision } from "./types";
@@ -21,6 +21,8 @@ export type ApprovalBinding = {
   reason: string;
   resource: string;
   decision: "soft_fail";
+  /** The Guardian's checks, so the card shows why it was held (defaults to a per-tx-max soft fail). */
+  checks?: GuardianDecision["checks"];
 };
 
 export type PublicWorld = {
@@ -100,12 +102,12 @@ export function createSoftFailApproval(input: ApprovalBinding): ApprovalRequest 
   const decision: GuardianDecision = {
     verdict: "ask_human",
     reason,
-    checks: [{ name: "perTxMax", status: "soft_fail", detail: reason }],
+    checks: input.checks ?? [{ name: "perTxMax", status: "soft_fail", detail: reason }],
     quote: {
       resource: input.resource,
       payTo: input.payTo,
       amountAtomic: input.amount,
-      amountDisplay: fromAtomic(input.amount),
+      amountDisplay: `${fromAtomic(input.amount)} ${input.asset.toLowerCase() === USDC_BASE_SEPOLIA.toLowerCase() ? "USDC" : "tokens"}`,
       asset: input.asset,
       network: input.network,
     },
@@ -152,6 +154,7 @@ export function requestApproval(runId: string, decision: GuardianDecision, agent
     reason: decision.reason,
     resource: decision.quote.resource,
     decision: "soft_fail",
+    checks: decision.checks,
   });
 }
 

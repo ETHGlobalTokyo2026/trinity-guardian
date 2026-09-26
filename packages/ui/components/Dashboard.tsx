@@ -225,7 +225,7 @@ export default function Dashboard() {
         {/* mobile order: scenarios, log, mandate. lg: log beside a stacked left column. xl: three columns */}
         <div className="grid items-start gap-4 sm:gap-7 lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)_380px]">
           <div className="lg:col-start-1 lg:row-start-1">
-            <ScenarioPanel scenarios={state.scenarios} agent={state.agent} running={running} onRun={run} onRestore={canRestore ? () => void mandateAction("grant") : undefined} />
+            <ScenarioPanel scenarios={state.scenarios} interceptaEnabled={state.integrations.interceptaEnabled} agent={state.agent} running={running} onRun={run} onRestore={canRestore ? () => void mandateAction("grant") : undefined} />
           </div>
           <div ref={feedRef} className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 xl:row-span-1">
             <CheckpointLog runs={runs} approvals={state.approvals} />
