@@ -1,6 +1,7 @@
 import { hashSignal } from "@worldcoin/idkit-core/hashing";
 import { signRequest } from "@worldcoin/idkit-core/signing";
 import { APPROVAL_TIMEOUT_MS, WORLD_ENVIRONMENT } from "../config";
+import { recordVerifiedPerson } from "./worldid-db";
 
 const VERIFY_URL = "https://developer.world.org/api/v4/verify";
 
@@ -108,7 +109,7 @@ export function proofMatches(launch: WorldLaunch, proof: IdKitResult): string | 
   return null;
 }
 
-export async function verifyWorldId(proof: IdKitResult): Promise<{ nullifier: string }> {
+export async function verifyWorldId(proof: IdKitResult, meta?: { approvalId?: string }): Promise<{ nullifier: string }> {
   const res = await fetch(`${VERIFY_URL}/${rpId()}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -119,5 +120,12 @@ export async function verifyWorldId(proof: IdKitResult): Promise<{ nullifier: st
   if (!res.ok) throw new Error(`world id verify failed (${res.status})`);
   const nullifier = proof.responses?.[0]?.nullifier;
   if (!nullifier) throw new Error("world id verify response missing nullifier");
+  recordVerifiedPerson({
+    nullifier,
+    appId: appId(),
+    rpId: rpId(),
+    action: proof.action || action(),
+    approvalId: meta?.approvalId,
+  });
   return { nullifier };
 }

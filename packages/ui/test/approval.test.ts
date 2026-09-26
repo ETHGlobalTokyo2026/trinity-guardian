@@ -13,6 +13,7 @@ import {
 } from "../lib/guardian/approval";
 import type { GuardianDecision } from "../lib/guardian/types";
 import type { IdKitResult } from "../lib/guardian/worldid";
+import { getVerifiedPerson } from "../lib/guardian/worldid-db";
 import { getApproval, resetAll, updateApproval } from "../lib/store";
 
 const SIGNING_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -71,6 +72,8 @@ describe("World ID approval", () => {
     const approved = await submitProof(created.id, proof);
     assert.equal(approved.status, "approved");
     assert.equal(approved.nullifier, "0x04e5");
+    assert.equal(getVerifiedPerson("0x04e5")?.nullifier, "0x04e5");
+    assert.equal(getVerifiedPerson("0x04e5")?.approvalId, created.id);
     const consumed = consumeApproval(created.id);
     assert.ok(consumed.consumedAt);
     assert.throws(() => consumeApproval(created.id), /already consumed/);

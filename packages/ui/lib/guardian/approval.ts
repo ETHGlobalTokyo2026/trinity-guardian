@@ -197,7 +197,7 @@ export async function submitProof(id: string, proof: IdKitResult): Promise<Appro
     throw new Error(mismatch);
   }
   try {
-    const verified = await verifyWorldId(proof);
+    const verified = await verifyWorldId(proof, { approvalId: id });
     const updated = settle(id, "approved", undefined, { nullifier: verified.nullifier });
     if (!updated || updated.status !== "approved") throw new Error("approval was not approved");
     return updated;
