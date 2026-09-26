@@ -21,7 +21,8 @@
     "ens:register-agent": "node --env-file=.env.local --experimental-strip-types scripts/register-agent.ts",
     "ens:debug-resolver": "node --env-file=.env.local --experimental-strip-types scripts/debug-universal-resolver.ts",
     "ens:scan-factory": "node --env-file=.env.local --experimental-strip-types scripts/scan-factory.ts",
-    "ens:deploy-resolver": "node --env-file=.env.local --experimental-strip-types scripts/deploy-permissioned-resolver.ts"
+    "ens:deploy-resolver": "node --env-file=.env.local --experimental-strip-types scripts/deploy-permissioned-resolver.ts",
+    "ens:setup-resolution": "node --env-file=.env.local --experimental-strip-types scripts/setup-agent-resolution.ts"
   },
   "devEngines": {
     "packageManager": {
