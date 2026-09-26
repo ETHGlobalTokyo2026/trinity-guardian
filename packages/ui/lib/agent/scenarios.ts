@@ -1,3 +1,5 @@
+import { ENS_ROGUE_LABEL, ENS_ROGUE_NAME } from "../ens/names";
+
 /**
  * The three (plus one) demo paths from the pitch. Each is a real x402
  * endpoint served by this same Next.js app under /api/services/*.
@@ -10,8 +12,8 @@ export type Scenario = {
   description: string;
   path: string;
   expected: "allow" | "deny" | "ask_human";
-  /** Owner action performed on chain before the purchase (demo chapter 4). */
-  preStep?: "revoke-spend";
+  /** When set, this run reads that agent's mandate instead of the dashboard agent. */
+  agentLabel?: string;
 };
 
 export const scenarios: Scenario[] = [
@@ -46,11 +48,10 @@ export const scenarios: Scenario[] = [
   {
     id: "kill-switch",
     title: "5 · Kill switch on ENS",
-    description:
-      "Same weather purchase, Intercepta green, under every cap — but the owner just revoked the agent's spend role on chain. Layer 1 refuses before anyone else gets a say.",
+    description: `Same weather purchase, under every cap — but ${ENS_ROGUE_NAME} has authority revoked on chain. Layer 1 refuses before anyone else gets a say.`,
     path: "/api/services/weather?city=Osaka",
     expected: "deny",
-    preStep: "revoke-spend",
+    agentLabel: ENS_ROGUE_LABEL,
   },
 ];
 

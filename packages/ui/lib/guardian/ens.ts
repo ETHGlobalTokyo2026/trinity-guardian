@@ -1,7 +1,7 @@
 import { labelhash, namehash, getAddress, encodeFunctionData, decodeFunctionResult, parseAbi, type Hex } from "viem";
 import { ensPublic } from "../ens/client";
 import { MANDATE_KEYS, NAME_STATUS, ROLE_SPEND, registryAbi, resolverAbi } from "../ens/constants";
-import { ENS_AGENT_LABEL, ENS_AGENT_NAME, ENS_PARENT_NAME, ENS_RESOLVER, ENS_USER_REGISTRY, ensConfigured } from "../ens/names";
+import { agentIdentity, ENS_PARENT_NAME, ENS_RESOLVER, ENS_USER_REGISTRY, ensConfigured } from "../ens/names";
 
 /**
  * Layer 1 — the ENS gate. Everything the Guardian needs to know about the
@@ -107,32 +107,33 @@ async function resolveCounterparty(name: string): Promise<Counterparty> {
   return { name, address: addr ? getAddress(addr) : undefined, agentContext, endpoint };
 }
 
-export async function readOnChainMandate(agentAddress: `0x${string}`): Promise<OnChainMandate> {
+export async function readOnChainMandate(agentAddress: `0x${string}`, agentLabel?: string): Promise<OnChainMandate> {
   const started = Date.now();
+  const who = agentIdentity(agentLabel);
   const registry = ENS_USER_REGISTRY!;
   const resolver = ENS_RESOLVER!;
   const base = {
     chainId: 11155111,
-    name: ENS_AGENT_NAME,
+    name: who.name,
     parent: ENS_PARENT_NAME,
     registry,
     resolver,
     fetchedAt: new Date(started).toISOString(),
   };
   try {
-    const id = BigInt(labelhash(ENS_AGENT_LABEL));
+    const id = BigInt(labelhash(who.label));
     const [roleHeld, expiry, status, authority, chainPerTx, chainDaily, chainAsset] = await Promise.all([
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "hasRoles", args: [id, ROLE_SPEND, agentAddress] }),
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "getExpiry", args: [id] }),
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "getStatus", args: [id] }),
-      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.authority),
-      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.perTxMax),
-      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.dailyCap),
-      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.asset),
+      resolverText(who.name, TRINITY_KEYS.authority),
+      resolverText(who.name, TRINITY_KEYS.perTxMax),
+      resolverText(who.name, TRINITY_KEYS.dailyCap),
+      resolverText(who.name, TRINITY_KEYS.asset),
     ]);
     const spendRole = authority === "revoked" ? false : authority === "active" ? true : roleHeld;
     const keys = Object.entries(MANDATE_KEYS) as [keyof typeof MANDATE_KEYS, string][];
-    const values = await Promise.all(keys.map(([, k]) => text(ENS_AGENT_NAME, k)));
+    const values = await Promise.all(keys.map(([, k]) => text(who.name, k)));
     const records = Object.fromEntries(keys.map(([k], i) => [k, values[i]])) as OnChainMandate["records"];
     if (chainPerTx) records.perTxMax = chainPerTx;
     if (chainDaily) records.dailyCap = chainDaily;

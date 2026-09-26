@@ -10,15 +10,12 @@ export function ScenarioPanel({
   agent,
   running,
   onRun,
-  onRestore,
 }: {
   scenarios: Scenario[];
   interceptaEnabled: boolean;
   agent: { address: string; ephemeralKey: boolean };
   running: string | null;
   onRun: (id: string) => void;
-  /** set while the spend role is revoked and the owner key can restore it */
-  onRestore?: () => void;
 }) {
   return (
     <section aria-labelledby="scn-h" className="flex flex-col gap-4 rounded-[14px] border border-line bg-sheet p-[22px]">
@@ -81,12 +78,6 @@ export function ScenarioPanel({
                   </span>
                 )}
               </button>
-              {/* outside the scenario button: no nested interactive elements */}
-              {s.preStep === "revoke-spend" && onRestore && (
-                <button type="button" onClick={onRestore} className="ml-[58px] self-start text-sm font-bold text-allow underline-offset-2 hover:underline">
-                  ↺ Restore spend role
-                </button>
-              )}
             </li>
           );
         })}
