@@ -3,7 +3,7 @@ import { snapshot } from "@/lib/store";
 import { loadMandate, policyHash } from "@/lib/policy";
 import { scenarios } from "@/lib/agent/scenarios";
 import { agentAccount, agentKeyIsEphemeral } from "@/lib/agent/wallet";
-import { interceptaConfigured } from "@/lib/guardian/intercepta";
+import { interceptaConfigured, interceptaEnabled } from "@/lib/guardian/intercepta";
 import { worldIdConfigured, worldIdDevBypass } from "@/lib/guardian/worldid";
 import { ownerConfigured } from "@/lib/ens/client";
 import { ensConfigured } from "@/lib/ens/names";
@@ -19,6 +19,7 @@ export async function GET(req: Request) {
     agent: { address: agentAccount.address, ephemeralKey: agentKeyIsEphemeral },
     integrations: {
       intercepta: interceptaConfigured(),
+      interceptaEnabled: interceptaEnabled(),
       worldId: worldIdConfigured(),
       worldIssuer: "sandbox",
       worldDevBypass: worldIdDevBypass(),

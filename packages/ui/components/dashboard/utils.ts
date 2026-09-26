@@ -37,6 +37,7 @@ export const CHECK_LABEL: Record<string, string> = {
   "ens.spendRole": "ENS: spend role",
   asset: "asset",
   allowlist: "allowlist",
+  intercepta: "Intercepta (off)",
   "intercepta.address": "Intercepta: payTo",
   "intercepta.token": "Intercepta: token",
   "intercepta.message": "Intercepta: message",

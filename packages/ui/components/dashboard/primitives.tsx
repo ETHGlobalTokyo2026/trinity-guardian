@@ -84,10 +84,10 @@ export function StatusChip({ tone, children, title, outlined = false }: { tone: 
   );
 }
 
-/** Integration status pill in the header: ● live, ✓ configured, ! degraded, ✕ missing. */
-export function Pill({ on, label, warn, live }: { on: boolean; label: string; warn?: boolean; live?: boolean }) {
-  const cls = warn ? "bg-hold-soft text-hold" : on ? "bg-allow-soft text-allow" : "bg-deny-soft text-deny";
-  const glyph = warn ? "!" : !on ? "✕" : live ? "●" : "✓";
+/** Integration status pill in the header: ● live, ✓ configured, ! degraded, ✕ missing, – switched off. */
+export function Pill({ on, label, warn, live, off }: { on: boolean; label: string; warn?: boolean; live?: boolean; off?: boolean }) {
+  const cls = off ? "bg-line text-ink-2" : warn ? "bg-hold-soft text-hold" : on ? "bg-allow-soft text-allow" : "bg-deny-soft text-deny";
+  const glyph = off ? "–" : warn ? "!" : !on ? "✕" : live ? "●" : "✓";
   return (
     <li className={`inline-flex items-center gap-[7px] rounded-full py-[5px] pl-2.5 pr-3 text-sm font-bold leading-tight ${cls}`}>
       <span aria-hidden className="text-xs">

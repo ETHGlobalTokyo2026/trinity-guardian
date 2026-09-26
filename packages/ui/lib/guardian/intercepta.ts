@@ -1,4 +1,4 @@
-import { INTERCEPTA_API_KEY, INTERCEPTA_BASE_URL, USDC_BASE_SEPOLIA } from "../config";
+import { INTERCEPTA_API_KEY, INTERCEPTA_BASE_URL, INTERCEPTA_ENABLED, USDC_BASE_SEPOLIA } from "../config";
 import type { Screening } from "./types";
 
 /**
@@ -218,6 +218,10 @@ export async function screenMessage(
     endpoint,
     latencyMs: r.latencyMs,
   };
+}
+
+export function interceptaEnabled(): boolean {
+  return INTERCEPTA_ENABLED;
 }
 
 export function interceptaConfigured(): boolean {

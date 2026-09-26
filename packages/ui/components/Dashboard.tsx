@@ -20,7 +20,7 @@ type State = {
   policyHash: string;
   scenarios: Scenario[];
   agent: { address: string; ephemeralKey: boolean };
-  integrations: { intercepta: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean; ens: boolean; ensOwnerKey: boolean; adminTokenRequired: boolean };
+  integrations: { intercepta: boolean; interceptaEnabled: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean; ens: boolean; ensOwnerKey: boolean; adminTokenRequired: boolean };
 };
 
 export default function Dashboard() {
