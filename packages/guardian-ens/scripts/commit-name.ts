@@ -34,7 +34,13 @@ const abi = parseAbi([
   "function commit(bytes32 commitment)",
 ]);
 
-const label = "trinityguardian";
+const label = process.argv[2];
+
+if (!label) {
+  throw new Error(
+    "Label is required. Example: pnpm ens:commit trinityguard",
+  );
+}
 const duration = 31_536_000n;
 
 // Random 32-byte secret.
@@ -73,11 +79,18 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 console.log("Commit confirmed.");
 console.log("");
-import { appendFileSync } from "node:fs";
-appendFileSync(
-    ".env.local",
-    `\nENS_REGISTRATION_SECRET=${secret}\n`,
-  );
+import { readFileSync, writeFileSync } from "node:fs";
+
+const envPath = ".env.local";
+const envContent = readFileSync(envPath, "utf8");
+
+const secretLine = `ENS_REGISTRATION_SECRET=${secret}`;
+
+const updatedEnv = /^ENS_REGISTRATION_SECRET=.*$/m.test(envContent)
+  ? envContent.replace(/^ENS_REGISTRATION_SECRET=.*$/m, secretLine)
+  : `${envContent.trimEnd()}\n${secretLine}\n`;
+
+writeFileSync(envPath, updatedEnv);
   
   console.log("Commit confirmed.");
   console.log("Registration secret saved to .env.local");

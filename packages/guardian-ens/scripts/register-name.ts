@@ -44,7 +44,13 @@ import {
     "function approve(address spender,uint256 amount) returns (bool)",
   ]);
   
-  const label = "trinityguardian";
+  const label = process.argv[2];
+
+  if (!label) {
+    throw new Error(
+      "Label is required. Example: pnpm ens:register trinityguard",
+    );
+  }
   const duration = 31_536_000n;
   
   const available = await publicClient.readContract({

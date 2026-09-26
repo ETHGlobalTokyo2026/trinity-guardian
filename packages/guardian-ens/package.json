@@ -16,7 +16,12 @@
     "ens:attach-subregistry": "node --env-file=.env.local --experimental-strip-types scripts/attach-subregistry.ts",
     "ens:register-agents": "node --env-file=.env.local --experimental-strip-types scripts/register-agents.ts",
     "ens:attach-agents": "node --env-file=.env.local --experimental-strip-types scripts/attach-agents-subregistry.ts",
-    "ens:register-shopping": "node --env-file=.env.local --experimental-strip-types scripts/register-shopping.ts"
+    "ens:register-shopping": "node --env-file=.env.local --experimental-strip-types scripts/register-shopping.ts",
+    "ens:inspect": "node --env-file=.env.local --experimental-strip-types scripts/inspect-ens.ts",
+    "ens:register-agent": "node --env-file=.env.local --experimental-strip-types scripts/register-agent.ts",
+    "ens:debug-resolver": "node --env-file=.env.local --experimental-strip-types scripts/debug-universal-resolver.ts",
+    "ens:scan-factory": "node --env-file=.env.local --experimental-strip-types scripts/scan-factory.ts",
+    "ens:deploy-resolver": "node --env-file=.env.local --experimental-strip-types scripts/deploy-permissioned-resolver.ts"
   },
   "devEngines": {
     "packageManager": {
