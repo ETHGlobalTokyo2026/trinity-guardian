@@ -1,6 +1,6 @@
-import { labelhash, getAddress } from "viem";
+import { labelhash, namehash, getAddress, encodeFunctionData, decodeFunctionResult, parseAbi, type Hex } from "viem";
 import { ensPublic } from "../ens/client";
-import { MANDATE_KEYS, NAME_STATUS, ROLE_SPEND, registryAbi } from "../ens/constants";
+import { MANDATE_KEYS, NAME_STATUS, ROLE_SPEND, registryAbi, resolverAbi } from "../ens/constants";
 import { ENS_AGENT_LABEL, ENS_AGENT_NAME, ENS_PARENT_NAME, ENS_RESOLVER, ENS_USER_REGISTRY, ensConfigured } from "../ens/names";
 
 /**
@@ -8,10 +8,12 @@ import { ENS_AGENT_LABEL, ENS_AGENT_NAME, ENS_PARENT_NAME, ENS_RESOLVER, ENS_USE
  * agent's mandate is read fresh from Sepolia before each signature:
  *
  *   - registry (our UserRegistry proxy, ENSv2 PermissionedRegistry):
- *       hasRoles(labelhash(agent), ROLE_SPEND, agentAddress)  -> the kill switch
  *       getExpiry / getStatus                                  -> expiring subname
- *   - resolver (our PermissionedResolver proxy), via the Universal Resolver:
- *       com.payguard.*  text records                           -> the policy numbers
+ *       hasRoles(labelhash(agent), ROLE_SPEND, agentAddress)  -> kill switch, if granted
+ *   - resolver (PermissionedResolver.resolve):
+ *       com.trinityguard.authority                             -> the kill switch on the deployed names
+ *       com.trinityguard.perTxMax / dailyCap / asset           -> the policy numbers
+ *       com.payguard.*                                         -> the same numbers, when written that way
  *       agent-context / agent-endpoint[web]                    -> ENSIP-26 identity
  *   - counterparties: every name in com.payguard.allowlist is forward-resolved
  *     and its ENSIP-26 records fetched, so payTo is matched against *names*.
@@ -35,6 +37,8 @@ export type OnChainMandate = {
   resolver: `0x${string}`;
   status: (typeof NAME_STATUS)[number];
   spendRole: boolean;
+  /** com.trinityguard.authority, when the resolver has that record. */
+  authority?: "active" | "revoked";
   expiry: number;
   expired: boolean;
   records: Partial<Record<keyof typeof MANDATE_KEYS, string>>;
@@ -46,6 +50,43 @@ export type OnChainMandate = {
 
 export function ensGateConfigured(): boolean {
   return ensConfigured();
+}
+
+const textAbi = parseAbi(["function text(bytes32 node, string key) view returns (string)"]);
+
+const TRINITY_KEYS = {
+  authority: "com.trinityguard.authority",
+  perTxMax: "com.trinityguard.perTxMax",
+  dailyCap: "com.trinityguard.dailyCap",
+  asset: "com.trinityguard.asset",
+} as const;
+
+function dnsEncode(name: string): Hex {
+  let encoded = "0x";
+  for (const label of name.split(".")) {
+    const bytes = new TextEncoder().encode(label);
+    encoded += bytes.length.toString(16).padStart(2, "0");
+    for (const byte of bytes) encoded += byte.toString(16).padStart(2, "0");
+  }
+  return `${encoded}00` as Hex;
+}
+
+/** PermissionedResolver stores text behind resolve(); a direct text() call reverts. */
+async function resolverText(name: string, key: string): Promise<string | undefined> {
+  if (!ENS_RESOLVER) return undefined;
+  try {
+    const data = encodeFunctionData({ abi: textAbi, functionName: "text", args: [namehash(name), key] });
+    const raw = await ensPublic.readContract({
+      address: ENS_RESOLVER,
+      abi: resolverAbi,
+      functionName: "resolve",
+      args: [dnsEncode(name), data],
+    });
+    const value = decodeFunctionResult({ abi: textAbi, functionName: "text", data: raw });
+    return value || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function text(name: string, key: string): Promise<string | undefined> {
@@ -80,14 +121,22 @@ export async function readOnChainMandate(agentAddress: `0x${string}`): Promise<O
   };
   try {
     const id = BigInt(labelhash(ENS_AGENT_LABEL));
-    const [spendRole, expiry, status] = await Promise.all([
+    const [roleHeld, expiry, status, authority, chainPerTx, chainDaily, chainAsset] = await Promise.all([
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "hasRoles", args: [id, ROLE_SPEND, agentAddress] }),
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "getExpiry", args: [id] }),
       ensPublic.readContract({ address: registry, abi: registryAbi, functionName: "getStatus", args: [id] }),
+      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.authority),
+      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.perTxMax),
+      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.dailyCap),
+      resolverText(ENS_AGENT_NAME, TRINITY_KEYS.asset),
     ]);
+    const spendRole = authority === "revoked" ? false : authority === "active" ? true : roleHeld;
     const keys = Object.entries(MANDATE_KEYS) as [keyof typeof MANDATE_KEYS, string][];
     const values = await Promise.all(keys.map(([, k]) => text(ENS_AGENT_NAME, k)));
     const records = Object.fromEntries(keys.map(([k], i) => [k, values[i]])) as OnChainMandate["records"];
+    if (chainPerTx) records.perTxMax = chainPerTx;
+    if (chainDaily) records.dailyCap = chainDaily;
+    if (chainAsset) records.asset = chainAsset;
     const names = (records.allowlist ?? "")
       .split(",")
       .map((s) => s.trim())
@@ -98,6 +147,7 @@ export async function readOnChainMandate(agentAddress: `0x${string}`): Promise<O
       ...base,
       status: NAME_STATUS[Number(status)] ?? "available",
       spendRole,
+      authority: authority === "active" || authority === "revoked" ? authority : undefined,
       expiry: Number(expiry),
       expired: nowSec >= Number(expiry),
       records,

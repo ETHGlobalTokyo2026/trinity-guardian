@@ -83,8 +83,12 @@ export async function evaluate(
           : oc.expired
             ? `${oc.name} expired ${new Date(oc.expiry * 1000).toISOString()} — mandate lapsed on chain`
             : oc.spendRole
-              ? `${oc.name} holds the spend role for ${payer} (registry ${oc.registry})`
-              : `spend role revoked on chain for ${payer} — kill switch is on`,
+              ? oc.authority
+                ? `${oc.name} authority is ${oc.authority} on Sepolia (registry ${oc.registry})`
+                : `${oc.name} holds the spend role for ${payer} (registry ${oc.registry})`
+              : oc.authority === "revoked"
+                ? `authority revoked on chain for ${oc.name} — kill switch is on`
+                : `spend role revoked on chain for ${payer} — kill switch is on`,
       data: { onChain: oc },
     });
   } else {

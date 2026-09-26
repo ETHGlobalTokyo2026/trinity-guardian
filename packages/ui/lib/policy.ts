@@ -63,17 +63,17 @@ export async function loadMandate(agentAddress: `0x${string}`): Promise<Mandate>
   if (!ensGateConfigured()) return { ...fallbackPolicy, source: "fallback" };
   const onChain = await readOnChainMandate(agentAddress);
   const r = onChain.records;
-  const allowlist = onChain.counterparties.map((c) => c.address).filter((a): a is `0x${string}` => Boolean(a));
+  const chainAllow = onChain.counterparties.map((c) => c.address).filter((a): a is `0x${string}` => Boolean(a));
   return {
     ...fallbackPolicy,
     source: "ens",
     onChain,
-    perTxMax: r.perTxMax ?? fallbackPolicy.perTxMax,
-    dailyCap: r.dailyCap ?? fallbackPolicy.dailyCap,
+    perTxMax: chainAmount(r.perTxMax, fallbackPolicy.perTxMax),
+    dailyCap: chainAmount(r.dailyCap, fallbackPolicy.dailyCap),
     asset: (r.asset as `0x${string}`) ?? fallbackPolicy.asset,
     network: r.network ?? fallbackPolicy.network,
-    allowlist,
-    allowlistNames: onChain.counterparties.map((c) => c.name),
+    allowlist: chainAllow.length ? chainAllow : fallbackPolicy.allowlist,
+    allowlistNames: chainAllow.length ? onChain.counterparties.map((c) => c.name) : fallbackPolicy.allowlistNames,
     expires: onChain.expiry ? new Date(onChain.expiry * 1000).toISOString() : fallbackPolicy.expires,
   };
 }
@@ -83,6 +83,14 @@ export function policyHash(p: Policy): string {
   const { agent, network, asset, perTxMax, dailyCap, allowlist, allowlistNames, expires } = p;
   const canonical = JSON.stringify({ agent, network, asset, perTxMax, dailyCap, allowlist, allowlistNames, expires });
   return "0x" + createHash("sha256").update(canonical).digest("hex");
+}
+
+/** Chain amounts are base units (5000000 = 5 USDC). Short values are already whole units. */
+function chainAmount(value: string | undefined, fallback: string): string {
+  const v = value?.trim();
+  if (!v) return fallback;
+  if (/^\d+$/.test(v) && v.length > 6) return fromAtomic(v);
+  return v;
 }
 
 export function toAtomic(whole: string, decimals = fallbackPolicy.decimals): bigint {
