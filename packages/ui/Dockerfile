@@ -8,10 +8,6 @@ FROM base AS builder
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/ui/package.json packages/ui/package.json
-COPY packages/agent/package.json packages/agent/package.json
-COPY packages/guardian/package.json packages/guardian/package.json
-COPY packages/guardian-ens/package.json packages/guardian-ens/package.json
-COPY packages/seller/package.json packages/seller/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
