@@ -36,7 +36,7 @@ export const setTextAbi = parseAbi([
 
 export const SET_TEXT_FROM = "0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11" as const;
 
-export const USDC_SEPOLIA = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const;
+export const USDC_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as const;
 
 export const POLICY_WRITES = [
   { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "active" },

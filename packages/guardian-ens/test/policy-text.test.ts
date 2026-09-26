@@ -60,7 +60,7 @@ const mandate = (authority: string, perTxMax = "5000000", dailyCap = "50000000",
 });
 
 describe("policyFromRecords", () => {
-  it("stores the Sepolia USDC address on both names", () => {
+  it("stores the Base Sepolia USDC address on both names", () => {
     expect(POLICY_WRITES).toHaveLength(8);
     expect(POLICY_WRITES.filter((write) => write.key === "com.trinityguard.asset").map((write) => write.value)).toEqual([
       USDC_SEPOLIA,
