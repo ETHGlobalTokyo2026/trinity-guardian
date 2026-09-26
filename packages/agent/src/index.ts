@@ -2,11 +2,12 @@
 //
 // Flow per purchase (AG-003):
 //   1. plain fetch → 402 → decode quote
-//   2. Guardian.checkPolicy (mock until @trinity/guardian lands)
+//   2. Guardian.checkPolicy
 //   3. pass → fetchWithPayment (EIP-3009) → facilitator settle → 200
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { createGuardian } from "@trinity/guardian";
 import { privateKeyToAccount } from "viem/accounts";
 import { decodeQuote, pickAccept } from "./quote.js";
 import { SpendAccumulator } from "./spend.js";
@@ -14,10 +15,8 @@ import type {
   AskHuman,
   BuyOptions,
   BuyResult,
-  GuardianVerdict,
   PaymentEvent,
   PaymentEventHandler,
-  PaymentRequirements,
   SpendState,
 } from "./types.js";
 
@@ -29,26 +28,19 @@ export interface Agent {
   onPaymentEvent(handler: PaymentEventHandler): () => void;
 }
 
-// ── Mock Guardian (replace with @trinity/guardian import when it lands) ──
-const PER_TX_MAX = 5_000_000n; // $5.00 — until read from ENS text records
+const DEMO_POLICY = {
+  roleActive: true,
+  perTxMax: 5_000_000n,
+  dailyCap: 50_000_000n,
+  allowedAsset: "",
+};
+
 const FLAGGED = new Set<string>(
   (process.env.SELLER_ADDRESS_B ? [process.env.SELLER_ADDRESS_B.toLowerCase()] : [])
 );
 
-function mockCheckPolicy(reqs: PaymentRequirements, dailySpend: bigint): GuardianVerdict {
-  const reasons: string[] = [];
-  if (reqs.network !== "eip155:84532")
-    return { decision: "hard_fail", reasons: [`network ${reqs.network} not allowed (Base Sepolia only)`] };
-
-  if (FLAGGED.has(reqs.payTo.toLowerCase()))
-    return { decision: "hard_fail", reasons: ["Intercepta [mock]: address flagged — reported rugpull / scam entity"] };
-
-  const amount = BigInt(reqs.amount);
-  if (amount > PER_TX_MAX) reasons.push(`amount exceeds perTxMax $5.00`);
-  if (dailySpend + amount > 50_000_000n)
-    return { decision: "hard_fail", reasons: [...reasons, "dailySpend + amount would exceed dailyCap $50.00"] };
-
-  return reasons.length ? { decision: "soft_fail", reasons } : { decision: "pass", reasons };
+async function readDemoPolicy() {
+  return DEMO_POLICY;
 }
 
 export async function createAgent(name: string, privateKey: `0x${string}`): Promise<Agent> {
@@ -61,6 +53,11 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
     },
   });
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+  const guardian = createGuardian({
+    agentSubname: name,
+    readPolicy: readDemoPolicy,
+    isFlagged: (payTo) => FLAGGED.has(payTo.toLowerCase()),
+  });
 
   const accumulator = new SpendAccumulator();
   const handlers = new Set<PaymentEventHandler>();
@@ -95,7 +92,7 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
       emit({ type: "quote_received", resource, payTo: reqs.payTo, amount: reqs.amount, asset: reqs.asset, network: reqs.network });
 
       emit({ type: "guardian_checking", resource });
-      const verdict = mockCheckPolicy(reqs, accumulator.dailySpend());
+      const verdict = await guardian.checkPolicy(reqs, accumulator.dailySpend());
       emit({ type: "guardian_verdict", resource, verdict, payTo: reqs.payTo, amount: reqs.amount });
 
       if (verdict.decision === "hard_fail") {

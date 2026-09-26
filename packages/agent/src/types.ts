@@ -19,7 +19,6 @@ export interface X402Quote {
 
 export type Decision = "pass" | "soft_fail" | "hard_fail";
 
-/** Until @trinity/guardian lands: minimal shape the agent calls. */
 export interface GuardianVerdict {
   decision: Decision;
   reasons: string[];
