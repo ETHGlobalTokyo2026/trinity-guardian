@@ -28,19 +28,20 @@ export interface Agent {
   onPaymentEvent(handler: PaymentEventHandler): () => void;
 }
 
-const DEMO_POLICY = {
-  roleActive: true,
-  perTxMax: 5_000_000n,
-  dailyCap: 50_000_000n,
-  allowedAsset: "",
+// per-agent demo policies — momo: spend role active, rogue: revoked (kill switch, Act 4)
+// keyed by subname (full name from createAgent); swap point: chain reader per
+// migration/onchain-policy.md
+const DEMO_POLICIES: Record<string, { roleActive: boolean; perTxMax: bigint; dailyCap: bigint; allowedAsset: string }> = {
+  "momo.agents.trinityguard.eth": { roleActive: true, perTxMax: 5_000_000n, dailyCap: 50_000_000n, allowedAsset: "" },
+  "rogue.agents.trinityguard.eth": { roleActive: false, perTxMax: 0n, dailyCap: 0n, allowedAsset: "" },
 };
 
 const FLAGGED = new Set<string>(
   (process.env.SELLER_ADDRESS_B ? [process.env.SELLER_ADDRESS_B.toLowerCase()] : [])
 );
 
-async function readDemoPolicy() {
-  return DEMO_POLICY;
+function readDemoPolicy(subname: string) {
+  return Promise.resolve(DEMO_POLICIES[subname] ?? null); // null = authority missing → guardian hard_fails
 }
 
 export async function createAgent(name: string, privateKey: `0x${string}`): Promise<Agent> {
