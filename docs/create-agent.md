@@ -3,7 +3,7 @@
 ## 0 — Prerequisites
 
 - Node.js ≥ 20
-- **pnpm** (repo ใช้ workspace protocol — `npm` ติดตั้งไม่ได้): `npm i -g pnpm@9`
+- **pnpm** (repo ใช้ workspace protocol — `npm` ติดตั้งไม่ได้): `npm i -g pnpm@11.9.0`
 - ติดตั้งครั้งแรกจาก root: `pnpm install`
 
 ## Step 1 — สร้าง burner wallet
