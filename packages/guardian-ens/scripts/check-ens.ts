@@ -15,6 +15,8 @@ const AGENT_NAMES = [
   "shopping.agents.trinityguard.eth",
   "research.agents.trinityguard.eth",
   "travel.agents.trinityguard.eth",
+  "momo.agents.trinityguard.eth",
+  "rogue.agents.trinityguard.eth",
 ] as const;
 
 console.log("Trinity Guardian — ENSv2 Resolution Check");

@@ -26,7 +26,18 @@ import {
   
   const COIN_TYPE_ETH = 60n;
   
-  const AGENTS = ["shopping", "research", "travel"] as const;
+  const DEFAULT_AGENTS = [
+    "shopping",
+    "research",
+    "travel",
+  ] as const;
+  
+  const cliAgents = process.argv.slice(2);
+  
+  const AGENTS =
+    cliAgents.length > 0
+      ? cliAgents
+      : [...DEFAULT_AGENTS];
   
   const registryAbi = parseAbi([
     "function getTokenId(uint256 labelId) view returns (uint256)",
