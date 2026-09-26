@@ -115,7 +115,7 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 ┌──────────────────────────────┐     eth_call     ┌───────────────────┐
 │ LAYER 1 · ENS — the gate     │ ◀─────────────── │ ENSv2 on Sepolia  │
 │ read EAC roles from chain    │                  │ - EAC roles       │
-│ subname: momo.trinityguard.eth   │                  │ - text records    │
+│ subname: momo.agents.trinityguard.eth │             │ - text records    │
 │ kill switch lives here       │                  │ - expiring names  │
 └───────┬──────────────────────┘                  └───────────────────┘
         │
@@ -150,7 +150,7 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 
 1. Agent makes plain `fetch(url)` → receives 402 with `Payment-Required` header
 2. Decode header → extract `payTo`, `amount`, `asset`, `network`
-3. **Layer 1 (ENS):** `eth_call` to check EAC role `spend` on `momo.trinityguard.eth`
+3. **Layer 1 (ENS):** `eth_call` to check EAC role `spend` on `momo.agents.trinityguard.eth`
    - Missing or revoked → REFUSE immediately (kill switch)
    - Read `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset` from text records
 4. **Layer 2 (Intercepta):**
@@ -200,7 +200,7 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 | **FR-20** | Guardian MUST read EAC role `spend` from agent's subname before signing | MUST |
 | **FR-21** | Guardian MUST refuse payment if `spend` role is missing or revoked | MUST |
 | **FR-22** | Guardian MUST read policy limits from ENS text records: `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset` | MUST |
-| **FR-23** | Agent subname MUST be registered under the project domain: `[agent].trinityguard.eth` (e.g., `momo.trinityguard.eth`) on ENSv2 Permissioned Registry | MUST |
+| **FR-23** | Agent subname MUST be registered under the agents registry: `[agent].agents.trinityguard.eth` (e.g., `momo.agents.trinityguard.eth`) on the ENSv2 Permissioned Registry | MUST |
 | **FR-24** | Owner MUST be able to revoke `spend` role via on-chain transaction (kill switch — powers Demo Act 4) | MUST |
 | **FR-25** | Subnames SHOULD support expiry dates for time-limited mandates | SHOULD |
 | **FR-26** | Guardian SHOULD check counterparty ENS resolution for risk scoring | COULD |
@@ -351,9 +351,9 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 | Network | Sepolia (eip155:11155111) |
 | Contracts | ENSv2 Permissioned Registry, Permissioned Resolver |
 | Features | EAC roles, text records, expiring subnames |
-| Parent domain | `trinityguard.eth` (team-registered) — subnames follow `[agent].trinityguard.eth` |
+| Parent domain | `trinityguard.eth` (registered on ENSv2 Sepolia) — agent names follow `[agent].agents.trinityguard.eth` |
 
-**Note:** `trinityguard.eth` is registered on ENS mainnet. To use it as the parent for ENSv2-on-Sepolia subnames, the name must be imported/migrated into the ENSv2 testnet registry (or re-registered there). If migration blocks progress, fall back to a plain testnet name and keep the `[agent].trinityguard.eth` convention for demo continuity.
+**Note:** `trinityguard.eth` is already registered on the ENSv2 Sepolia registrar. The `agents` UserRegistry sits under that name. Demo agent names are `<agent>.agents.trinityguard.eth` (for example `momo.agents.trinityguard.eth`).
 
 ### 6.5 USDC on Base Sepolia
 
@@ -371,7 +371,7 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 | `INTERCEPTA_API_KEY` | Intercepta API key (request via intercepta.io/ethglobal) |
 | `WORLD_APP_ID` | World ID application ID for sandbox |
 | `WORLD_ACTION` | World ID action identifier |
-| `ENS_SUBNAME` | Agent subname (e.g., `momo.trinityguard.eth`) |
+| `ENS_SUBNAME` | Agent subname (e.g., `momo.agents.trinityguard.eth`) |
 | `SELLER_ADDRESS_A` | Safe merchant address (allowlisted) |
 | `SELLER_ADDRESS_B` | Flagged merchant address (for demo block scenario) |
 | `PORT` | Seller server port (default: 4020) |
