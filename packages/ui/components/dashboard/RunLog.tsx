@@ -3,37 +3,36 @@
 import { useState, type ReactNode } from "react";
 import type { ApprovalRequest, FeedEvent } from "@/lib/store";
 import type { Check, GuardianDecision, Screening } from "@/lib/guardian/types";
-import { Caret, StatusChip } from "./primitives";
+import { Caret, GateGlyph, STAMP_FOR_RUN, Stamp, StatusChip, TONE_GLYPH, type Tone } from "./primitives";
+import { pipelineFor } from "./Pipeline";
 import { CHECK_LABEL, approvalForRun, chipClass, runSummary, shortAddr, time, worldPollLabel, type Run, reasonParts } from "./utils";
 
 export function CheckpointLog({ runs, approvals }: { runs: Run[]; approvals: ApprovalRequest[] }) {
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="font-semibold">Checkpoint log</h2>
-        <span className="text-sm text-ink-2">every payment the agent tried, newest first</span>
+    <section aria-labelledby="log-h" className="flex flex-col gap-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="flex items-baseline gap-3">
+          <h2 id="log-h" className="text-[22px] font-bold">
+            Checkpoint log
+          </h2>
+          <span aria-hidden className="text-sm tracking-[.2em] text-ink-3">
+            検問記録
+          </span>
+        </div>
+        <span className="text-[15px] text-ink-2">every payment the agent tried, newest first</span>
       </div>
-      <div className="space-y-3">
-        {runs.length === 0 && (
-          <div className="bg-sheet border border-dashed border-line rounded-lg p-8 text-center text-ink-2">
-            Nothing screened yet. Pick a purchase on the left to send the agent shopping.
-          </div>
-        )}
-        {runs.map((r, i) => (
-          <RunTicket key={r.runId} run={r} approval={approvalForRun(approvals, r.runId)} variant={i === 0 ? "latest" : "compact"} />
-        ))}
-      </div>
-    </div>
+      {runs.length === 0 && (
+        <div className="flex flex-col items-center gap-3.5 rounded-[14px] border-2 border-dashed border-line bg-sheet px-6 py-14 text-center text-ink-3">
+          <GateGlyph size={54} strokeWidth={2.4} />
+          <p className="max-w-[36ch] text-lg text-ink-2">Nothing screened yet. Pick a purchase on the left to send the agent shopping.</p>
+        </div>
+      )}
+      {runs.map((r, i) => (
+        <RunTicket key={r.runId} run={r} approval={approvalForRun(approvals, r.runId)} variant={i === 0 ? "latest" : "compact"} />
+      ))}
+    </section>
   );
 }
-
-const STAMP_TEXT: Record<Run["verdict"], string> = {
-  allow: "PAID",
-  hold: "HOLD",
-  deny: "REFUSED",
-  failed: "NOT SETTLED",
-  pending: "SCREENING",
-};
 
 type PhaseKey = "quote" | "ens" | "policy" | "screen" | "decision" | "approval" | "settle";
 const PHASE_DEFS: { key: PhaseKey; label: string; kinds: FeedEvent["kind"][] }[] = [
@@ -53,67 +52,106 @@ function phaseLevel(events: FeedEvent[]): FeedEvent["level"] {
   return "info";
 }
 
-function levelDot(level: FeedEvent["level"]) {
-  return { info: "bg-ink-3", ok: "bg-allow", warn: "bg-hold", danger: "bg-deny" }[level];
-}
+/** Timeline disc per level: colour + glyph + screen-reader word, never colour alone. */
+const LEVEL: Record<FeedEvent["level"], { cls: string; icon: string; sr: string }> = {
+  ok: { cls: "border-allow bg-allow-soft text-allow", icon: "✓", sr: "ok" },
+  warn: { cls: "border-hold bg-hold-soft text-hold", icon: "!", sr: "warning" },
+  danger: { cls: "border-deny bg-deny-soft text-deny", icon: "✕", sr: "danger" },
+  info: { cls: "border-ink-3 bg-paper text-ink-3", icon: "·", sr: "info" },
+};
 
 function phasesFor(run: Run) {
   return PHASE_DEFS.map((def) => ({ ...def, events: run.events.filter((e) => def.kinds.includes(e.kind)) })).filter((p) => p.events.length > 0);
 }
 
+/** ENS / Intercepta / World ID mini-trail, from the same model the pipeline band uses. */
+function GateTrail({ run, approval, small }: { run: Run; approval: ApprovalRequest | undefined; small?: boolean }) {
+  const { gates } = pipelineFor(run, approval);
+  const tones: Record<string, Tone | "none"> = { pass: "pass", soft: "soft", wait: "soft", fail: "fail", skip: "none", idle: "none", guard: "none" };
+  const color: Record<Tone | "none", string> = { pass: "border-allow text-allow", soft: "border-hold text-hold", fail: "border-deny text-deny", skip: "border-ink-3 text-ink-3", none: "border-dashed border-ink-3 text-ink-3" };
+  return (
+    <span className={`mt-1 flex flex-wrap ${small ? "gap-[5px]" : "gap-1.5"}`}>
+      {(["ENS", "Intercepta", "World ID"] as const).map((label, i) => {
+        const t = tones[gates[i].tone];
+        return (
+          <span
+            key={label}
+            title={gates[i].status}
+            className={`inline-flex items-center gap-1 border font-bold ${color[t]} ${small ? "rounded-[5px] px-[7px] py-px text-xs" : "rounded-md px-[9px] py-0.5 text-[13px]"}`}
+          >
+            <span aria-hidden>{t === "none" ? "–" : TONE_GLYPH[t]}</span>
+            {label}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function RunTicket({ run, approval, variant }: { run: Run; approval: ApprovalRequest | undefined; variant: "latest" | "compact" }) {
   const [open, setOpen] = useState(variant === "latest");
-  const stampText = STAMP_TEXT[run.verdict];
   const settled = run.events.find((e) => e.kind === "settled");
+  const txHash = (settled?.data?.settleResponse as { transaction?: string } | undefined)?.transaction;
   const phases = phasesFor(run);
   const summary = runSummary(run);
+  const verdict = STAMP_FOR_RUN[run.verdict];
+  const latest = variant === "latest";
 
   return (
-    <article className={`bg-sheet border rounded-lg overflow-hidden ${variant === "latest" ? "border-2 border-line shadow-sm" : "border-line"}`}>
+    <article className={`overflow-hidden bg-sheet ${latest ? "rounded-[14px] border-2 border-line shadow-[0_6px_24px_-16px_rgba(0,0,0,.25)]" : "rounded-xl border border-line"}`}>
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 text-left hover:bg-paper/40 transition-colors"
+        className={`flex w-full items-center text-left transition-colors ${latest ? "flex-wrap gap-x-[22px] gap-y-4 px-4 py-[18px] sm:px-6 sm:py-[22px]" : "gap-4 px-[18px] py-3.5 hover:bg-paper"}`}
       >
-        <span className={`stamp stamp-${run.verdict} ${variant === "latest" ? "stamp-lg" : "stamp-sm"} ${run.verdict !== "pending" ? "stamp-live" : ""}`}>
-          {stampText}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className={`block font-semibold truncate ${variant === "latest" ? "text-base" : "text-sm"}`}>{run.title}</span>
-          <span className={`block text-ink-2 ${variant === "latest" ? "text-sm mt-0.5 line-clamp-2" : "text-xs truncate"}`}>{summary}</span>
-          {variant === "latest" && (
-            <span className="block text-xs text-ink-3 mt-1">
-              {time(run.started)} · {run.events.length} steps
-              {approval && ` · owner ${approval.status}`}
-              {settled && (
+        {latest ? (
+          <Stamp verdict={verdict} size="lg" live={run.verdict !== "pending"} />
+        ) : (
+          <span className="flex w-[72px] flex-none justify-center sm:w-28">
+            <Stamp verdict={verdict} size="sm" />
+          </span>
+        )}
+        <span className={`flex min-w-0 flex-col ${latest ? "flex-[1_1_280px] gap-1.5" : "flex-1 gap-[3px]"}`}>
+          <span className={latest ? "text-[19px] font-black leading-tight sm:text-[22px]" : "text-base font-bold leading-snug"}>{run.title}</span>
+          <span className={`[overflow-wrap:anywhere] ${latest ? "text-base leading-relaxed text-ink-2 text-pretty" : "line-clamp-2 text-sm leading-snug text-ink-2"}`}>{summary}</span>
+          {latest && (
+            <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-ink-3">
+              <span className="mono">{time(run.started)}</span>
+              <span aria-hidden>·</span>
+              <span>{run.events.length} steps</span>
+              {approval && (
                 <>
-                  {" "}
-                  · tx{" "}
-                  <a
-                    className="underline mono"
-                    href={`https://sepolia.basescan.org/tx/${(settled.data?.settleResponse as { transaction?: string })?.transaction}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {shortAddr((settled.data?.settleResponse as { transaction?: string })?.transaction ?? "")}
-                  </a>
+                  <span aria-hidden>·</span>
+                  <span>owner {approval.status}</span>
+                </>
+              )}
+              {txHash && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>
+                    tx{" "}
+                    <a className="mono text-guard underline" href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                      {shortAddr(txHash)}
+                    </a>
+                  </span>
                 </>
               )}
             </span>
           )}
+          <GateTrail run={run} approval={approval} small={!latest} />
         </span>
-        {variant === "compact" && <span className="hidden sm:block text-xs text-ink-3 shrink-0">{time(run.started)}</span>}
+        {!latest && <span className="mono hidden flex-none text-[13px] text-ink-3 sm:block">{time(run.started)}</span>}
         <Caret open={open} />
       </button>
       {open && (
-        <div className="border-t border-line divide-y divide-line">
+        <ol className={`flex flex-col border-t border-line ${latest ? "px-4 pb-2.5 pt-1 sm:px-6 sm:pb-3.5 sm:pt-1.5" : "px-[18px] pb-2.5 pt-1"}`}>
           {phases.map((p) => (
-            <Phase key={p.key} phaseKey={p.key} label={p.label} events={p.events} defaultOpen={variant === "latest"}>
+            <Phase key={p.key} phaseKey={p.key} label={p.label} events={p.events} defaultOpen={latest}>
               <PhaseBody phaseKey={p.key} events={p.events} />
             </Phase>
           ))}
-        </div>
+        </ol>
       )}
     </article>
   );
@@ -134,18 +172,25 @@ function Phase({
 }) {
   const level = phaseLevel(events);
   const open = defaultOpen || level === "warn" || level === "danger" || phaseKey === "approval";
+  const l = LEVEL[level];
   return (
-    <details className="group" open={open}>
-      <summary className="flex items-center gap-2 px-4 py-2 text-sm select-none">
-        <Caret open={open} />
-        <span className={`size-1.5 rounded-full shrink-0 ${levelDot(level)}`} aria-hidden />
-        <span className="font-medium">{label}</span>
-        <span className="text-ink-3 text-xs ml-auto">
-          {events.length} step{events.length > 1 ? "s" : ""}
-        </span>
-      </summary>
-      <div className="px-4 pb-3 pt-0.5">{children}</div>
-    </details>
+    <li className="grid grid-cols-[28px_minmax(0,1fr)] gap-x-3.5">
+      {/* timeline rail */}
+      <div aria-hidden className="flex flex-col items-center">
+        <span className={`mt-3.5 grid size-[26px] flex-none place-items-center rounded-full border-[1.5px] text-[13px] font-black ${l.cls}`}>{l.icon}</span>
+        <span className="w-0.5 flex-1 bg-line" />
+      </div>
+      <details className="min-w-0 py-3.5" open={open}>
+        <summary className="flex min-h-[26px] select-none items-center gap-2.5">
+          <span className="text-base font-bold">{label}</span>
+          <span className="sr-only">{l.sr}</span>
+          <span className="ml-auto whitespace-nowrap text-[13px] text-ink-3">
+            {events.length} step{events.length > 1 ? "s" : ""}
+          </span>
+        </summary>
+        <div className="flex flex-col gap-2.5 pt-2.5">{children}</div>
+      </details>
+    </li>
   );
 }
 
@@ -154,18 +199,18 @@ function PhaseBody({ phaseKey, events }: { phaseKey: PhaseKey; events: FeedEvent
   if (phaseKey === "screen") return <ScreeningRows events={events} />;
   if (phaseKey === "decision") return <DecisionLine events={events} />;
   return (
-    <ol className="space-y-1.5">
+    <>
       {events.map((e) => (
         <CompactEventRow key={e.id} e={e} />
       ))}
-    </ol>
+    </>
   );
 }
 
 function PolicyChips({ events }: { events: FeedEvent[] }) {
   const checks = events.map((e) => e.data?.check as Check | undefined).filter((c): c is Check => Boolean(c));
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {checks.map((c) => (
         <StatusChip key={c.name} tone={chipClass(c.status)} title={c.detail}>
           {CHECK_LABEL[c.name] ?? c.name}
@@ -175,7 +220,7 @@ function PolicyChips({ events }: { events: FeedEvent[] }) {
   );
 }
 
-function screeningTone(verdict: Screening["verdict"]): "pass" | "fail" | "soft" {
+function screeningTone(verdict: Screening["verdict"]): Tone {
   if (verdict === "clear") return "pass";
   if (verdict === "flagged") return "fail";
   return "soft";
@@ -188,41 +233,44 @@ function ScreeningRows({ events }: { events: FeedEvent[] }) {
     "screen.message": "authorization message",
   };
   return (
-    <div className="space-y-2">
+    <>
       {events.map((e) => {
         const s = e.data?.screening as Screening | undefined;
         if (!s) return null;
         return (
-          <div key={e.id} className="flex items-start gap-2">
+          <div key={e.id} className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
             <StatusChip tone={screeningTone(s.verdict)} title={e.detail}>
               {subjectLabel[e.kind] ?? e.kind}: {s.verdict}
             </StatusChip>
-            <div className="min-w-0 flex-1">
-              {e.detail && <p className="text-xs text-ink-2 break-words">{e.detail}</p>}
+            <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-1">
+              {e.detail && <p className="break-words text-sm leading-snug text-ink-2">{e.detail}</p>}
               {s.raw !== undefined && (
-                <details className="mt-0.5">
-                  <summary className="text-xs text-guard inline-block">show evidence</summary>
-                  <pre className="mono text-xs bg-paper rounded p-2 mt-1 overflow-x-auto max-h-64">{JSON.stringify(s.raw, null, 2)}</pre>
+                <details>
+                  <summary className="text-sm font-medium text-guard">› show evidence</summary>
+                  <pre className="mono mt-1.5 max-h-64 overflow-x-auto rounded-lg bg-paper px-3 py-2.5 text-[12.5px] leading-normal text-ink-2">{JSON.stringify(s.raw, null, 2)}</pre>
                 </details>
               )}
             </div>
           </div>
         );
       })}
-    </div>
+    </>
   );
 }
 
 function DecisionLine({ events }: { events: FeedEvent[] }) {
   return (
-    <div className="space-y-1">
+    <>
       {events.map((e) => {
         const d = e.data?.decision as GuardianDecision | undefined;
+        const color = { ok: "text-allow", warn: "text-hold", danger: "text-deny", info: "text-ink" }[e.level];
         return (
-          <div key={e.id} className="text-sm">
-            <span className="text-xs text-ink-3 mr-2">{time(e.ts)}</span>
-            <span className="font-medium">{e.title}</span>
-            <ul className="mt-1 space-y-0.5 list-disc pl-5">
+          <div key={e.id} className="flex flex-col gap-1.5">
+            <span className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span className="mono text-[13px] text-ink-3">{time(e.ts)}</span>
+              <span className={`text-base font-bold ${color}`}>{e.title}</span>
+            </span>
+            <ul className="flex list-disc flex-col gap-[3px] pl-5 text-[15px] leading-snug">
               {reasonParts(d?.reason ?? e.detail).map((r) => (
                 <li key={r} className="break-words">
                   {r}
@@ -232,24 +280,24 @@ function DecisionLine({ events }: { events: FeedEvent[] }) {
           </div>
         );
       })}
-    </div>
+    </>
   );
 }
 
 function CompactEventRow({ e }: { e: FeedEvent }) {
-  const dot = levelDot(e.level);
   const worldIdMeta = e.kind === "approval.requested" || e.kind === "approval.resolved" ? (e.data?.lastPoll as string | undefined) : undefined;
   return (
-    <li className="flex gap-2.5">
-      <span className={`mt-1.5 size-1.5 rounded-full shrink-0 ${dot}`} aria-hidden />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-sm font-medium">{e.title}</span>
-          <span className="text-xs text-ink-3">{time(e.ts)}</span>
-        </div>
-        {e.detail && <p className="text-xs text-ink-2 break-words" title={e.detail}>{e.detail}</p>}
-        {worldIdMeta && <p className="text-xs text-ink-3">{worldPollLabel(worldIdMeta)}</p>}
-      </div>
-    </li>
+    <div className="flex flex-col gap-0.5">
+      <span className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <span className="text-[15px] font-medium">{e.title}</span>
+        <span className="mono text-[13px] text-ink-3">{time(e.ts)}</span>
+      </span>
+      {e.detail && (
+        <span className="break-words text-sm leading-snug text-ink-2" title={e.detail}>
+          {e.detail}
+        </span>
+      )}
+      {worldIdMeta && <span className="text-sm text-ink-3">{worldPollLabel(worldIdMeta)}</span>}
+    </div>
   );
 }
