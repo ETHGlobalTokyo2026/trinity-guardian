@@ -1,0 +1,42 @@
+{
+  "name": "@trinity-guardian/ens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "rpc:check": "node --env-file=.env.local --experimental-strip-types scripts/check-rpc.ts",
+    "ens:check": "node --env-file=.env.local --experimental-strip-types scripts/check-ens.ts",
+    "wallet:check": "node --env-file=.env.local --experimental-strip-types scripts/check-wallet.ts",
+    "ens:commit": "node --env-file=.env.local --experimental-strip-types scripts/commit-name.ts",
+    "ens:register": "node --env-file=.env.local --experimental-strip-types scripts/register-name.ts",
+    "ens:deploy-registry": "node --env-file=.env.local --experimental-strip-types scripts/deploy-user-registry.ts",
+    "ens:attach-subregistry": "node --env-file=.env.local --experimental-strip-types scripts/attach-subregistry.ts",
+    "ens:register-agents": "node --env-file=.env.local --experimental-strip-types scripts/register-agents.ts",
+    "ens:attach-agents": "node --env-file=.env.local --experimental-strip-types scripts/attach-agents-subregistry.ts",
+    "ens:register-shopping": "node --env-file=.env.local --experimental-strip-types scripts/register-shopping.ts",
+    "ens:inspect": "node --env-file=.env.local --experimental-strip-types scripts/inspect-ens.ts",
+    "ens:register-agent": "node --env-file=.env.local --experimental-strip-types scripts/register-agent.ts",
+    "ens:debug-resolver": "node --env-file=.env.local --experimental-strip-types scripts/debug-universal-resolver.ts",
+    "ens:scan-factory": "node --env-file=.env.local --experimental-strip-types scripts/scan-factory.ts",
+    "ens:deploy-resolver": "node --env-file=.env.local --experimental-strip-types scripts/deploy-permissioned-resolver.ts",
+    "ens:setup-resolution": "node --env-file=.env.local --experimental-strip-types scripts/setup-agent-resolution.ts"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.9.0",
+      "onFail": "download"
+    }
+  },
+  "dependencies": {
+    "viem": "^2.56.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
