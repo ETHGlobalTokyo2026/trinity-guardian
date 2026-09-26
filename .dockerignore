@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+**/.next
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+packages/ui/data
+packages/ui/e2e
+packages/ui/playwright.config.ts
+packages/ui/test
+packages/ui/test-results
+**/*.log
+.idea
