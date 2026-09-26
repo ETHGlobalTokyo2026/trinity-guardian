@@ -29,9 +29,25 @@ export interface Agent {
   onPaymentEvent(handler: PaymentEventHandler): () => void;
 }
 
-const FLAGGED = new Set<string>(
-  (process.env.SELLER_ADDRESS_B ? [process.env.SELLER_ADDRESS_B.toLowerCase()] : [])
-);
+const INTERCEPTA_KEY = process.env.INTERCEPTA_API_KEY?.trim() || "tg_mock_intercepta";
+const INTERCEPTA_URL = (
+  process.env.INTERCEPTA_BASE_URL || `http://127.0.0.1:${process.env.SELLER_PORT || 4020}`
+).replace(/\/$/, "");
+
+async function payToFlagged(payTo: string): Promise<boolean> {
+  const url = `${INTERCEPTA_URL}/api/public/v2/extension/account/${payTo}/quick-scan`;
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { "X-API-KEY": INTERCEPTA_KEY, Accept: "application/json" } });
+  } catch {
+    throw new Error(`Intercepta mock unreachable (${url})`);
+  }
+  if (!res.ok) throw new Error(`Intercepta mock HTTP ${res.status}`);
+  const data = (await res.json()) as { isScam?: boolean; toxicScore?: number; traits?: { name: string }[] };
+  if (typeof data.isScam === "boolean") return data.isScam;
+  const traits = data.traits ?? [];
+  return traits.length > 0 || (data.toxicScore ?? 0) > 0;
+}
 
 async function readOnchainPolicy(subname: string) {
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
@@ -52,7 +68,7 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
   const guardian = createGuardian({
     agentSubname: name,
     readPolicy: readOnchainPolicy,
-    isFlagged: (payTo) => FLAGGED.has(payTo.toLowerCase()),
+    isFlagged: payToFlagged,
   });
 
   const accumulator = new SpendAccumulator();

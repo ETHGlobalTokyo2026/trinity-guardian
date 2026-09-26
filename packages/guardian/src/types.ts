@@ -29,5 +29,5 @@ export interface Guardian {
 export interface GuardianConfig {
   agentSubname: string;
   readPolicy(subname: string): Promise<Policy | null>;
-  isFlagged(payTo: string): boolean;
+  isFlagged(payTo: string): boolean | Promise<boolean>;
 }

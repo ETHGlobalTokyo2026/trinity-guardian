@@ -36,7 +36,16 @@ export function createGuardian(config: GuardianConfig): Guardian {
         };
       }
 
-      if (config.isFlagged(reqs.payTo)) {
+      let flagged = false;
+      try {
+        flagged = await config.isFlagged(reqs.payTo);
+      } catch (e) {
+        return {
+          decision: "hard_fail",
+          reasons: [e instanceof Error ? e.message : String(e)],
+        };
+      }
+      if (flagged) {
         return {
           decision: "hard_fail",
           reasons: ["Intercepta [mock]: address flagged — reported rugpull / scam entity"],

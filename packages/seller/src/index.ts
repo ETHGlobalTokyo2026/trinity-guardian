@@ -4,6 +4,7 @@ import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
+import { interceptaRouter } from "@trinity/intercepta";
 import { merchants } from "./merchants.js";
 import { PORT, SAFE_MERCHANT, SCAM_MERCHANT } from "./config.js";
 
@@ -13,6 +14,8 @@ const SAFE = SAFE_MERCHANT!;
 const SCAM = SCAM_MERCHANT!;
 
 const app = express();
+
+app.use(interceptaRouter());
 
 app.use(
   paymentMiddleware(
@@ -40,7 +43,6 @@ app.use(
   )
 );
 
-// merchant metadata for the UI picker — no auth, not a paid endpoint
 app.get("/merchants", (_req, res) => res.json({ merchants }));
 
 app.get("/weather", (req, res) =>
@@ -54,7 +56,7 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`[x402-seller] http://0.0.0.0:${port}  (/weather $0.01 · /data $0.25 · /compute $7.00 · /merchants)`);
   console.log(`             facilitator ${FACILITATOR} · ${NETWORK} (Base Sepolia)`);
   console.log(`             payTo A ${SAFE}${process.env.SELLER_ADDRESS_A ? "" : "  (recycle mode → agent wallet)"}`);
-  console.log(`             payTo B ${SCAM}  (flagged)`);
+  console.log(`             payTo B ${SCAM}  (scam — Intercepta mock)`);
 });
 
 export { app };
