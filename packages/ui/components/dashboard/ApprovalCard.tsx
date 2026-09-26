@@ -2,7 +2,7 @@
 
 import type { ApprovalRequest } from "@/lib/store";
 import { CopyText, Stamp, StatusChip, useCountdown } from "./primitives";
-import { CHECK_LABEL, chipClass, worldPollLabel, reasonParts } from "./utils";
+import { CHECK_LABEL, chipClass, reasonParts } from "./utils";
 
 type Integrations = { intercepta: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean };
 
@@ -108,40 +108,21 @@ export function ApprovalCard({
         </div>
 
         <div className="mx-auto flex min-w-[260px] flex-[0_1_300px] flex-col items-center self-start gap-2.5 rounded-[14px] border border-line bg-paper p-5 text-center">
-          {link ? (
-            <>
-              <div className="rounded-[10px] bg-white p-3.5">
-                <QRCode value={link} size={168} aria-label="QR code for the World ID verification link" />
-              </div>
-              <p className="mt-1 text-[15px] font-medium">Scan with the sandbox World App</p>
-              <p className="mono text-3xl font-semibold tracking-[.12em]">{w?.userCode}</p>
-              <a href={link} target="_blank" rel="noreferrer" className="text-sm font-medium text-guard underline">
-                or open the approval link
-              </a>
-              <Countdown lastPoll={w?.lastPoll} pct={timePct} label={countdown.label} expired={countdown.expired} near={nearExpiry} />
-            </>
-          ) : w?.redacted ? (
-            <div className="flex flex-col items-center gap-3.5 px-2 py-9">
-              <svg width="44" height="52" viewBox="0 0 44 52" fill="none" stroke="var(--ink-3)" strokeWidth="3" strokeLinecap="round" aria-hidden>
-                <rect x="4" y="22" width="36" height="26" rx="5" />
-                <path d="M12 22v-7a10 10 0 0 1 20 0v7" />
-              </svg>
-              <p className="max-w-[22ch] text-base leading-snug text-ink-2">Enter the owner token to show the World ID QR.</p>
-              <p className="text-sm text-ink-3">{countdown.expired ? "request expired" : `expires in ${countdown.label}`}</p>
-            </div>
-          ) : (
-            <div className="py-6 text-sm text-ink-2">{w?.error ?? "Contacting World ID…"}</div>
-          )}
+          <p className="text-[15px] font-medium">World ID proof required</p>
+          <p className="mono break-all text-sm">{a.id}</p>
+          <p className="text-sm text-ink-2">action {a.launch.action}</p>
+          {a.error ? <p className="text-sm text-deny">{a.error}</p> : null}
+          {integrations.worldId ? null : <p className="text-sm text-deny">World ID is not configured</p>}
+          <Countdown pct={timePct} label={countdown.label} expired={countdown.expired} near={nearExpiry} />
         </div>
       </div>
     </section>
   );
 }
 
-function Countdown({ lastPoll, pct, label, expired, near }: { lastPoll?: string; pct: number; label: string; expired: boolean; near: boolean }) {
+function Countdown({ pct, label, expired, near }: { pct: number; label: string; expired: boolean; near: boolean }) {
   return (
     <div className="mt-1.5 flex w-full flex-col gap-2 border-t border-dashed border-line pt-3">
-      <p className="text-sm text-ink-2">{worldPollLabel(lastPoll)}</p>
       <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-line">
         <div className={`h-full transition-[width] ${near ? "bg-deny" : "bg-ink-2"}`} style={{ width: `${pct}%` }} />
       </div>
