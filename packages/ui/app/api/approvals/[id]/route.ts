@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   cancelApproval,
   consumeApproval,
+  relaunchApproval,
   publicApproval,
   rejectClientApprovalFlag,
   submitProof,
@@ -26,6 +27,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/approvals/[id]"
   try {
     rejectClientApprovalFlag(body);
     if (body.action === "cancel") return NextResponse.json(publicApproval(cancelApproval(id)));
+    // re-sign the RP context right before the widget opens
+    if (body.action === "launch") return NextResponse.json(publicApproval(relaunchApproval(id)));
     if (body.action === "proof") {
       if (!body.idkitResponse) return NextResponse.json({ error: "idkitResponse is required" }, { status: 400 });
       return NextResponse.json(publicApproval(await submitProof(id, body.idkitResponse)));

@@ -37,7 +37,10 @@ export const INTERCEPTA_API_KEY = process.env.INTERCEPTA_API_KEY;
 export const INTERCEPTA_BASE_URL = envOr("INTERCEPTA_BASE_URL", "https://api.intercepta.io");
 
 /** IDKit sandbox. The signing key is read only inside lib/guardian/worldid.ts. */
-export const WORLD_ENVIRONMENT = "sandbox" as const;
+const WORLD_ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
+/** IDKit environment; must match the World app (a production `app_…` id needs "production"). */
+export const WORLD_ENVIRONMENT = envOr("WORLD_ENVIRONMENT", "production") as (typeof WORLD_ENVIRONMENTS)[number];
+if (!WORLD_ENVIRONMENTS.includes(WORLD_ENVIRONMENT)) throw new Error(`WORLD_ENVIRONMENT must be one of ${WORLD_ENVIRONMENTS.join(", ")}, got "${WORLD_ENVIRONMENT}"`);
 
 /** How long the agent waits for the human owner before giving up. */
 export const APPROVAL_TIMEOUT_MS = Number(envOr("APPROVAL_TIMEOUT_MS", String(5 * 60_000)));

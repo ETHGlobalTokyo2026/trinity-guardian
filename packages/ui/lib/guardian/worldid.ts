@@ -70,9 +70,9 @@ function redact(message: string): string {
   return key ? message.split(key).join("[redacted]") : message;
 }
 
-export function signApproval(signal: string): WorldLaunch {
+export function signApproval(signal: string, ttlSec = Math.floor(APPROVAL_TIMEOUT_MS / 1000)): WorldLaunch {
   if (!worldIdConfigured()) throw new Error("World ID is not configured");
-  const ttl = Math.max(1, Math.floor(APPROVAL_TIMEOUT_MS / 1000));
+  const ttl = Math.max(1, Math.floor(ttlSec));
   let signed;
   try {
     signed = signRequest({ signingKeyHex: signingKey(), action: action(), ttl });
