@@ -3,3 +3,5 @@ packages:
 allowBuilds:
   esbuild: false
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - dotenv
