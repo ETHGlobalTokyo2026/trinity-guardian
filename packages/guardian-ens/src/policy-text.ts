@@ -30,9 +30,22 @@ const textAbi = parseAbi([
   "function text(bytes32 node, string key) view returns (string)",
 ]);
 
-const setTextAbi = parseAbi([
+export const setTextAbi = parseAbi([
   "function setText(bytes name, string key, string value)",
 ]);
+
+export const SET_TEXT_FROM = "0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11" as const;
+
+export const DRY_RUN_TEXT_WRITES = [
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "active" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.perTxMax", value: "5000000" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.dailyCap", value: "50000000" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.asset", value: "USDC" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "revoked" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.perTxMax", value: "5000000" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.dailyCap", value: "50000000" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.asset", value: "USDC" },
+] as const;
 
 export function dnsEncode(name: string): Hex {
   let encoded = "0x";
