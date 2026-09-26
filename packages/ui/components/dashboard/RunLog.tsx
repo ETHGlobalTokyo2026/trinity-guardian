@@ -34,6 +34,14 @@ export function CheckpointLog({ runs, approvals }: { runs: Run[]; approvals: App
   );
 }
 
+const APPROVAL_LABEL: Record<string, string> = {
+  pending: "waiting for the owner",
+  approved: "owner approved",
+  denied: "owner cancelled",
+  expired: "approval expired",
+  invalid: "World ID proof invalid",
+};
+
 type PhaseKey = "quote" | "ens" | "policy" | "screen" | "decision" | "approval" | "settle";
 const PHASE_DEFS: { key: PhaseKey; label: string; kinds: FeedEvent["kind"][] }[] = [
   { key: "quote", label: "Quote", kinds: ["run.start", "quote"] },
@@ -123,7 +131,7 @@ function RunTicket({ run, approval, variant }: { run: Run; approval: ApprovalReq
               {approval && (
                 <>
                   <span aria-hidden>·</span>
-                  <span>owner {approval.status}</span>
+                  <span>{APPROVAL_LABEL[approval.status] ?? `owner ${approval.status}`}</span>
                 </>
               )}
               {txHash && (

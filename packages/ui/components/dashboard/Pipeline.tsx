@@ -3,6 +3,7 @@
 import type { ApprovalRequest, FeedEvent } from "@/lib/store";
 import type { Check, GuardianDecision } from "@/lib/guardian/types";
 import { GateGlyph, STAMP_FOR_RUN, Stamp, type StampVerdict } from "./primitives";
+import { networkName } from "@/lib/chains";
 import { CHECK_LABEL, fmt, type Run } from "./utils";
 
 type GateTone = "pass" | "soft" | "wait" | "fail" | "skip" | "idle" | "guard";
@@ -24,7 +25,7 @@ const GATES = [
 ] as const;
 
 const OUTCOME: Record<StampVerdict, { name: string; sub: string; tone: GateTone }> = {
-  paid: { name: "Paid", sub: "signed & settled on Base Sepolia", tone: "pass" },
+  paid: { name: "Paid", sub: "signed & settled", tone: "pass" },
   hold: { name: "Held", sub: "until the owner approves", tone: "wait" },
   refused: { name: "Refused", sub: "nothing signed — the money did not move", tone: "fail" },
   failed: { name: "Not settled", sub: "approved, but settlement failed", tone: "skip" },
@@ -41,6 +42,8 @@ export type PipelineModel = {
   amount: string;
   resource: string;
   title: string;
+  /** CAIP-2 network of the quote, for the outcome line */
+  network?: string;
   /** no run yet: every node idle, no stamp */
   empty?: boolean;
 };
@@ -70,7 +73,7 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
   }
   const of = (...kinds: FeedEvent["kind"][]) => run.events.filter((e) => kinds.includes(e.kind));
   const decision = of("decision")[0]?.data?.decision as GuardianDecision | undefined;
-  const quoteEv = of("quote")[0]?.data?.selected as { amount?: string; payTo?: string } | undefined;
+  const quoteEv = of("quote")[0]?.data?.selected as { amount?: string; payTo?: string; network?: string } | undefined;
   const quoteReq = of("quote")[0]?.data?.paymentRequired as { resource?: { url?: string } } | undefined;
   const amountAtomic = decision?.quote.amountAtomic ?? quoteEv?.amount;
   const amount = amountAtomic ? `$${fmt(amountAtomic)}` : "—";
@@ -127,7 +130,7 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
   const outcomeText = { paid: "paid", hold: `held${where}`, refused: `refused${where}`, failed: "not settled", screening: "screening…" }[verdict];
   const name = run.title.replace(/^\d+\s*·\s*/, "");
   const amountText = amountAtomic ? ` · ${fmt(amountAtomic)} ${decision?.quote.amountDisplay.split(" ").pop() ?? "USDC"}` : "";
-  return { gates, verdict, stopAt, amount, resource, title: `${name}${amountText} — ${outcomeText}` };
+  return { gates, verdict, stopAt, amount, resource, title: `${name}${amountText} — ${outcomeText}`, network: decision?.quote.network ?? quoteEv?.network };
 }
 
 /**
@@ -136,7 +139,8 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
  * screens (xl), column below.
  */
 export function Pipeline({ model }: { model: PipelineModel }) {
-  const outcome = model.empty ? { name: "Waiting", sub: "no payment has been tried yet", tone: "idle" as GateTone } : OUTCOME[model.verdict];
+  const base = model.empty ? { name: "Waiting", sub: "no payment has been tried yet", tone: "idle" as GateTone } : OUTCOME[model.verdict];
+  const outcome = model.verdict === "paid" && model.network ? { ...base, sub: `${base.sub} on ${networkName(model.network)}` } : base;
   const nodes = [
     { kind: "quote" as const, eyebrow: "Payment", name: model.resource, sub: "the agent asks to pay", tone: "guard" as GateTone, status: undefined as string | undefined },
     ...GATES.map((g, i) => ({ kind: "gate" as const, ...g, tone: model.gates[i].tone, status: model.gates[i].status })),

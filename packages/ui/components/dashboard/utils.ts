@@ -116,7 +116,9 @@ export function reasonParts(reason: string | undefined): string[] {
       const m = part.match(/^([a-zA-Z.]+):\s*(.*)$/s);
       if (!m) return part.trim();
       const label = CHECK_LABEL[m[1]] ?? m[1];
-      return `${label}: ${m[2].trim()}`;
+      const detail = m[2].trim();
+      // "perTxMax: 8 USDC > per-tx max 5 USDC" already names the check; don't say it twice
+      return detail.toLowerCase().includes(label.toLowerCase()) ? detail : `${label}: ${detail}`;
     })
     .filter(Boolean);
 }

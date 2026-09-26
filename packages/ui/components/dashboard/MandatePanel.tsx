@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Mandate } from "@/lib/policy";
+import { networkName } from "@/lib/chains";
 import { CopyText, GateGlyph } from "./primitives";
 import { fmt, shortAddr, spendGateOpen, type Ledger } from "./utils";
 
@@ -105,7 +106,7 @@ export function MandatePanel({
         <dd>{policy.agent}</dd>
         <dt>Asset</dt>
         <dd>
-          {policy.assetSymbol} on {policy.network}
+          {policy.assetSymbol} on <span title={policy.network}>{networkName(policy.network)}</span>
         </dd>
         <dt>Per payment</dt>
         <dd className="mono">
@@ -167,7 +168,15 @@ export function MandatePanel({
           </div>
         ) : (
           <p className="text-sm text-ink-3">
-            {integrations.ens ? "Set ENS_OWNER_PRIVATE_KEY to flip the spend role from here, or use `pnpm mandate revoke`." : "Run `pnpm mandate setup` to put this mandate on Sepolia."}
+            {integrations.ens ? (
+              <>
+                Set <code className="mono">ENS_OWNER_PRIVATE_KEY</code> to flip the spend role from here, or use <code className="mono">pnpm mandate revoke</code>.
+              </>
+            ) : (
+              <>
+                Run <code className="mono">pnpm mandate setup</code> to put this mandate on Sepolia.
+              </>
+            )}
           </p>
         )}
       </div>

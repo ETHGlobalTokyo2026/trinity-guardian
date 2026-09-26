@@ -6,6 +6,7 @@ import { emit, newId, recordSpend } from "../store";
 import { evaluate } from "../guardian/evaluate";
 import { consumeApproval, requestApproval, waitForApproval } from "../guardian/approval";
 import { agentAccount } from "./wallet";
+import { networkName } from "../chains";
 import type { Scenario } from "./scenarios";
 import { revokeSpendRole } from "../ens/admin";
 import { ownerConfigured } from "../ens/client";
@@ -33,7 +34,7 @@ export function createGuardedClient(runId: string) {
       kind: "quote",
       level: "info",
       title: `402 Payment Required — ${fromAtomic(req.amount)} ${policy.assetSymbol}`,
-      detail: `payTo ${req.payTo} · asset ${req.asset} · ${req.network}`,
+      detail: `payTo ${req.payTo} · asset ${req.asset} · ${networkName(req.network)}`,
       data: { paymentRequired, selected: req },
     });
 
@@ -109,7 +110,7 @@ export function createGuardedClient(runId: string) {
         runId,
         kind: "settled",
         level: "ok",
-        title: `Settled on ${settleResponse.network}`,
+        title: `Settled on ${networkName(settleResponse.network)}`,
         detail: `tx ${settleResponse.transaction}`,
         data: { settleResponse },
       });

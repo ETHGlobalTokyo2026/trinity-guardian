@@ -6,12 +6,14 @@ import { splitScenarioTitle } from "./utils";
 
 export function ScenarioPanel({
   scenarios,
+  interceptaEnabled,
   agent,
   running,
   onRun,
   onRestore,
 }: {
   scenarios: Scenario[];
+  interceptaEnabled: boolean;
   agent: { address: string; ephemeralKey: boolean };
   running: string | null;
   onRun: (id: string) => void;
@@ -35,6 +37,10 @@ export function ScenarioPanel({
       <ol className="flex flex-col gap-2.5">
         {scenarios.map((s) => {
           const { index, name } = splitScenarioTitle(s.title);
+          // with Intercepta off nothing flags the scam payTo: it is only "not on the allowlist", a soft fail
+          const offline = s.id === "scam-payto" && !interceptaEnabled;
+          const expected = offline ? "ask_human" : s.expected;
+          const description = offline ? "Quote from a new endpoint whose payTo is not on the allowlist. Intercepta is off, so nothing flags it: the Guardian asks the owner." : s.description;
           const isRunning = running === s.id;
           const disabled = running !== null;
           return (
@@ -64,10 +70,10 @@ export function ScenarioPanel({
                   )}
                   <span className="min-w-0 flex-1 pt-1 text-[17px] font-bold leading-snug">{name}</span>
                   <span className="mt-[3px]">
-                    <Expect verdict={s.expected} />
+                    <Expect verdict={expected} />
                   </span>
                 </span>
-                <span className="pl-11 text-sm leading-relaxed text-ink-2 text-pretty">{s.description}</span>
+                <span className="pl-11 text-sm leading-relaxed text-ink-2 text-pretty">{description}</span>
                 {isRunning && (
                   <span className="flex items-center gap-2 pl-11 text-sm font-bold text-guard">
                     <span aria-hidden className="size-2 animate-pulse rounded-full bg-guard" />

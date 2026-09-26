@@ -13,6 +13,16 @@ const WorldIdConnect = dynamic(() => import("./WorldIdConnect").then((m) => m.Wo
   loading: () => <p className="py-6 text-sm text-ink-2">Loading World ID…</p>,
 });
 
+/** "http://host:3000/api/services/bulk-data?x=1" -> "/api/services/bulk-data?x=1"; non-URLs pass through. */
+function resourcePath(resource: string): string {
+  try {
+    const u = new URL(resource);
+    return `${u.pathname}${u.search}`;
+  } catch {
+    return resource;
+  }
+}
+
 /** Under this many seconds the countdown turns shu and gains a ⚠. */
 const NEAR_EXPIRY_MS = 30_000;
 
@@ -46,10 +56,13 @@ export function ApprovalCard({
             Layer 3 · <span aria-hidden>三</span> — World ID approver
           </span>
           <h2 id="ap-h" className="text-[22px] font-black leading-tight text-pretty sm:text-3xl">
-            The agent wants to pay <span className="mono font-semibold">{a.quote.amountDisplay}</span> — waiting for the owner
+            The agent wants to pay <span className="mono font-semibold">{a.quote.amountDisplay.split(" ")[0]}</span> {a.quote.amountDisplay.split(" ").slice(1).join(" ")} — waiting for the owner
           </h2>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base text-ink-2">
-            to <CopyText value={a.quote.payTo} className="bg-sheet text-[15px]" /> for <span className="mono break-all text-[15px] text-ink">{a.quote.resource}</span>
+            to <CopyText value={a.quote.payTo} className="bg-sheet text-[15px]" /> for{" "}
+            <span className="mono break-all text-[15px] text-ink" title={a.quote.resource}>
+              {resourcePath(a.quote.resource)}
+            </span>
           </p>
         </div>
       </div>

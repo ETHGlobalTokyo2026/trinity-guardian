@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { NETWORK, SELLER_ADDRESS, USDC_BASE_SEPOLIA } from "./config";
+import { INTERCEPTA_ENABLED, NETWORK, SELLER_ADDRESS, USDC_BASE_SEPOLIA } from "./config";
 import { ensGateConfigured, readOnChainMandate, type OnChainMandate } from "./guardian/ens";
 import { ENS_AGENT_LABEL } from "./ens/names";
 import { envOr } from "./env";
@@ -47,7 +47,11 @@ export const fallbackPolicy: Policy = {
   dailyCap: envOr("POLICY_DAILY_CAP", "50"),
   allowlist: [SELLER_ADDRESS],
   allowlistNames: [],
-  requireHumanIf: ["amount > perTxMax", "payTo not in allowlist", "no verdict from Intercepta"],
+  requireHumanIf: [
+    "the amount is above the per-payment max",
+    "the payee is not on the allowlist",
+    ...(INTERCEPTA_ENABLED ? ["Intercepta gives no verdict"] : []),
+  ],
   expires: envOr("POLICY_EXPIRES", "2026-09-28T00:00:00Z"),
 };
 
