@@ -3,12 +3,15 @@ import { createEnsClient } from "../src/client.ts";
 import {
   POLICY_NAMES,
   POLICY_TEXT_KEYS,
+  POLICY_WRITES,
   RESOLVER,
   decodeTextResult,
   dnsEncode,
+  policyFromRecords,
   resolveAbi,
   textAbi,
   textCalldata,
+  type PolicyRecords,
 } from "../src/policy-text.ts";
 
 const rpcUrl = process.env.SEPOLIA_RPC_URL;
@@ -31,6 +34,7 @@ console.log();
 let unexpected = 0;
 
 for (const name of POLICY_NAMES) {
+  const records = {} as PolicyRecords;
   console.log(name);
   for (const key of POLICY_TEXT_KEYS) {
     try {
@@ -41,12 +45,19 @@ for (const name of POLICY_NAMES) {
         args: [dnsEncode(name), textCalldata(name, key)],
       });
       const value = decodeTextResult(data);
+      records[key] = value;
+      const expected = POLICY_WRITES.find((write) => write.name === name && write.key === key)?.value;
       console.log(`  ${key}=${value === "" ? "(empty)" : value}`);
-      if (value !== "") unexpected += 1;
+      if (value !== expected) unexpected += 1;
     } catch (error) {
       unexpected += 1;
       console.log(`  ${key} REVERT ${safeError(error)}`);
     }
+  }
+  if (unexpected === 0) {
+    const policy = policyFromRecords(records);
+    const roleActive = name.startsWith("momo.");
+    if (!policy || policy.roleActive !== roleActive) unexpected += 1;
   }
 
   try {
@@ -65,7 +76,7 @@ for (const name of POLICY_NAMES) {
 }
 
 if (unexpected > 0) {
-  throw new Error(`${unexpected} policy read(s) were not an empty resolve result`);
+  throw new Error(`${unexpected} policy read(s) did not match the stored mandate`);
 }
 
-console.log("All policy keys are unset. Direct text() still reverts.");
+console.log("Stored mandates match. Direct text() still reverts.");

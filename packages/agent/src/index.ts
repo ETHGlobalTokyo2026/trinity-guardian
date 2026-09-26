@@ -7,6 +7,7 @@
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { x402Client } from "@x402/core/client";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { createEnsClient, readPolicyText } from "@trinity-guardian/ens";
 import { createGuardian } from "@trinity/guardian";
 import { privateKeyToAccount } from "viem/accounts";
 import { decodeQuote, pickAccept } from "./quote.js";
@@ -28,19 +29,14 @@ export interface Agent {
   onPaymentEvent(handler: PaymentEventHandler): () => void;
 }
 
-const DEMO_POLICY = {
-  roleActive: true,
-  perTxMax: 5_000_000n,
-  dailyCap: 50_000_000n,
-  allowedAsset: "",
-};
-
 const FLAGGED = new Set<string>(
   (process.env.SELLER_ADDRESS_B ? [process.env.SELLER_ADDRESS_B.toLowerCase()] : [])
 );
 
-async function readDemoPolicy() {
-  return DEMO_POLICY;
+async function readOnchainPolicy(subname: string) {
+  const rpcUrl = process.env.SEPOLIA_RPC_URL;
+  if (!rpcUrl) throw new Error("SEPOLIA_RPC_URL is required");
+  return readPolicyText(createEnsClient(rpcUrl), subname);
 }
 
 export async function createAgent(name: string, privateKey: `0x${string}`): Promise<Agent> {
@@ -55,7 +51,7 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
   const fetchWithPayment = wrapFetchWithPayment(fetch, client);
   const guardian = createGuardian({
     agentSubname: name,
-    readPolicy: readDemoPolicy,
+    readPolicy: readOnchainPolicy,
     isFlagged: (payTo) => FLAGGED.has(payTo.toLowerCase()),
   });
 

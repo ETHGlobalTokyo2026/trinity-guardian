@@ -11,9 +11,9 @@
 ### In scope
 
 - **Layer 1 — ENS (The Gate):**
-  - Read EAC `spend` role via `eth_call` (Sepolia)
+  - Read text record `com.trinityguard.authority` via `eth_call` (Sepolia)
   - Read text records: `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset`
-  - Kill switch: revoked role → hard fail immediately
+  - Kill switch: authority missing or `revoked` → hard fail immediately
   - Agent subname pattern: `[agent].trinityguard.eth`
 
 - **Layer 2 — Intercepta (The Checkpoint):**
@@ -163,7 +163,7 @@ export interface GuardianConfig {
 | # | Deliverable | SRS FR |
 |---|-------------|--------|
 | 1 | `src/guardian/index.ts` — `createGuardian()` factory | FR-10 |
-| 2 | `src/guardian/ens.ts` — Layer 1: EAC role + text record reader | FR-20, FR-21, FR-22, FR-23 |
+| 2 | `src/guardian/ens.ts` — Layer 1: authority and limit text-record reader | FR-20, FR-21, FR-22, FR-23 |
 | 3 | `src/guardian/intercepta.ts` — Layer 2: `quick-scan-address`, `scan-token` | FR-30, FR-31, FR-32 |
 | 4 | `src/guardian/caps.ts` — Cap checks (perTxMax, dailyCap) | FR-22, FR-71 |
 | 5 | `src/guardian/worldid.ts` — Layer 3: approval request + proof validation | FR-40, FR-41, FR-42, FR-43, FR-44, FR-45 |
@@ -179,7 +179,7 @@ export interface GuardianConfig {
 ## Acceptance criteria
 
 1. **Layer 1 — ENS gate:**
-   - `checkPolicy()` returns `hard_fail` immediately when `spend` role is revoked
+   - `checkPolicy()` returns `hard_fail` immediately when `com.trinityguard.authority` is missing or `revoked`
    - Reads `perTxMax`, `dailyCap`, `asset` from text records
    - Demo Act 4: kill switch blocks payment that would otherwise pass
 
@@ -222,7 +222,7 @@ git checkout -b feature/guardian
 - Atomic commits per deliverable
 - Format: `guardian: <what changed>`
 - Examples:
-  - `guardian: add ENS layer with EAC role check`
+  - `guardian: add ENS layer with authority text check`
   - `guardian: integrate live Intercepta API`
   - `guardian: add World ID approval flow`
 
@@ -272,12 +272,12 @@ import { sepolia } from "viem/chains";
 
 const client = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
 
-async function readEACRole(subname: string): Promise<boolean> {
-  // eth_call to EAC contract: hasRole(subname, "spend")
+async function readAuthority(subname: string): Promise<string> {
+  // eth_call resolver resolve(dns, text(bytes32, "com.trinityguard.authority"))
 }
 
 async function readTextRecord(subname: string, key: string): Promise<string> {
-  // eth_call to resolver: text(namehash(subname), key)
+  // eth_call resolver resolve(dns, text(bytes32, key))
 }
 ```
 

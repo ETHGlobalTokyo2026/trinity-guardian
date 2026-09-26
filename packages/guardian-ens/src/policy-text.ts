@@ -36,6 +36,19 @@ export const setTextAbi = parseAbi([
 
 export const SET_TEXT_FROM = "0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11" as const;
 
+export const USDC_SEPOLIA = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const;
+
+export const POLICY_WRITES = [
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "active" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.perTxMax", value: "5000000" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.dailyCap", value: "50000000" },
+  { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.asset", value: USDC_SEPOLIA },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "revoked" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.perTxMax", value: "5000000" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.dailyCap", value: "50000000" },
+  { name: "rogue.agents.trinityguard.eth", key: "com.trinityguard.asset", value: USDC_SEPOLIA },
+] as const;
+
 export const DRY_RUN_TEXT_WRITES = [
   { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.authority", value: "active" },
   { name: "momo.agents.trinityguard.eth", key: "com.trinityguard.perTxMax", value: "5000000" },
@@ -92,6 +105,55 @@ export function decodeTextResult(data: Hex): string {
     functionName: "text",
     data,
   });
+}
+
+export interface OnchainPolicy {
+  roleActive: boolean;
+  perTxMax: bigint;
+  dailyCap: bigint;
+  allowedAsset: string;
+}
+
+export type PolicyRecords = Record<PolicyTextKey, string>;
+
+export function policyFromRecords(records: PolicyRecords): OnchainPolicy | null {
+  const authority = records["com.trinityguard.authority"].trim();
+  if (authority !== "active" && authority !== "revoked") return null;
+  const perTxMax = records["com.trinityguard.perTxMax"].trim();
+  const dailyCap = records["com.trinityguard.dailyCap"].trim();
+  const asset = records["com.trinityguard.asset"].trim();
+  if (!/^\d+$/.test(perTxMax) || !/^\d+$/.test(dailyCap) || asset === "") {
+    throw new Error("policy text is not a complete mandate");
+  }
+  return {
+    roleActive: authority === "active",
+    perTxMax: BigInt(perTxMax),
+    dailyCap: BigInt(dailyCap),
+    allowedAsset: asset,
+  };
+}
+
+type ResolveReader = {
+  readContract(args: {
+    address: typeof RESOLVER;
+    abi: typeof resolveAbi;
+    functionName: "resolve";
+    args: readonly [Hex, Hex];
+  }): Promise<Hex>;
+};
+
+export async function readPolicyText(client: ResolveReader, name: string): Promise<OnchainPolicy | null> {
+  const records = {} as PolicyRecords;
+  for (const key of POLICY_TEXT_KEYS) {
+    const data = await client.readContract({
+      address: RESOLVER,
+      abi: resolveAbi,
+      functionName: "resolve",
+      args: [dnsEncode(name), textCalldata(name, key)],
+    });
+    records[key] = decodeTextResult(data);
+  }
+  return policyFromRecords(records);
 }
 
 export { resolveAbi, textAbi };

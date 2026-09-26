@@ -12,4 +12,11 @@ describe("setText dry-run payloads", () => {
     expect(source).not.toMatch(/writeContract|sendTransaction|walletClient/);
     expect(source).toContain("simulateContract");
   });
+
+  it("simulates the real payload before writeContract", () => {
+    const source = readFileSync(new URL("../scripts/write-policy-text.ts", import.meta.url), "utf8");
+    expect(source.indexOf("simulateContract")).toBeGreaterThan(-1);
+    expect(source.indexOf("simulateContract")).toBeLessThan(source.indexOf("writeContract"));
+    expect(source).not.toMatch(/grantRoles|sendTransaction/);
+  });
 });

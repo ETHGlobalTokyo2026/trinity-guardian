@@ -211,5 +211,5 @@ pnpm run demo
 - POC: `/Users/coachaek/workspace/momo-assistant/src/ethglobal/japan2026/poc/x402/agent.ts`
 - x402 docs: `@x402/fetch`, `@x402/evm`, `@x402/core`
 - Network: Base Sepolia (`eip155:84532`)
-- USDC: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+- USDC: `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
 - Facilitator: `https://x402.org/facilitator`

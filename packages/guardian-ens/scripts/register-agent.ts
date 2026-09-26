@@ -83,8 +83,9 @@ if (parentExpiry === 0n) {
 //
 // Leaf agent.
 //
-// No ENS management roles are delegated to the agent identity itself.
-// Trinity Guardian payment permissions are a separate application layer.
+// Spend permission is the text record com.trinityguard.authority.
+// REGISTRAR, SET_RESOLVER, and SET_SUBREGISTRY are name-admin bits, so they
+// stay unset. Bitmap 0 is not a payment decision.
 //
 const AGENT_ROLES = 0n;
 

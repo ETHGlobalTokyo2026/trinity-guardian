@@ -16,7 +16,7 @@ This document specifies the software requirements for **Trinity Guardian**, a 3-
 ### 1.2 Scope
 
 Trinity Guardian intercepts x402 payment requests at the Guardian middleware layer and enforces:
-1. **ENS identity gate** — spend permission stored on-chain via EAC roles
+1. **ENS identity gate** — spend permission stored on-chain as text record `com.trinityguard.authority`
 2. **Intercepta checkpoint** — real-time address/token/message screening
 3. **World ID human approver** — owner verification for risky or high-value payments
 
@@ -44,7 +44,7 @@ The system targets 4 sponsor prizes totaling $16,500: World ($7,500), ENS ($6,00
 | ENSv2 Contracts | `ens-contracts` v2 (Permissioned Registry, Resolver, EAC) |
 | World ID for Agents | `https://sandbox.auth.world.org` |
 | Intercepta API | Base URL TBD — use endpoint paths from the key onboarding docs (quick-scan-address, scan-token, scan-message) |
-| USDC (Base Sepolia) | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| USDC (Sepolia) | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 | Working POC | `/src/ethglobal/japan2026/poc/x402/` |
 | Idea Document | `/src/ethglobal/japan2026/06-trinity-guardian.md` |
 
@@ -95,7 +95,7 @@ The system wraps the x402 payment flow: when an agent receives a 402 response, G
 ### 3.1 Three-Layer Trust Stack
 
 ```
-Layer 1 — ENS    : The Gate       (spend role on-chain)
+Layer 1 — ENS    : The Gate       (authority text record on-chain)
 Layer 2 — Intercepta : The Checkpoint  (real-time screening)
 Layer 3 — World ID  : The Approver   (human approval when risky)
 ```
@@ -114,14 +114,14 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
        ▼
 ┌──────────────────────────────┐     eth_call     ┌───────────────────┐
 │ LAYER 1 · ENS — the gate     │ ◀─────────────── │ ENSv2 on Sepolia  │
-│ read EAC roles from chain    │                  │ - EAC roles       │
-│ subname: momo.trinityguard.eth   │                  │ - text records    │
-│ kill switch lives here       │                  │ - expiring names  │
+│ read authority text record   │                  │ - text records    │
+│ subname: momo.trinityguard.eth   │                  │ - expiring names  │
+│ kill switch lives here       │                  │                   │
 └───────┬──────────────────────┘                  └───────────────────┘
         │
-        ├─ no "spend" role / revoked ─▶ REFUSE (kill switch)
+        ├─ authority missing / revoked ─▶ REFUSE (kill switch)
         │
-        │ has "spend" role
+        │ authority = active
         ▼
 ┌──────────────────────────────┐   REST API   ┌───────────────────┐
 │ LAYER 2 · Intercepta —       │ ◀─────────── │ Intercepta API    │
@@ -150,8 +150,8 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 
 1. Agent makes plain `fetch(url)` → receives 402 with `Payment-Required` header
 2. Decode header → extract `payTo`, `amount`, `asset`, `network`
-3. **Layer 1 (ENS):** `eth_call` to check EAC role `spend` on `momo.trinityguard.eth`
-   - Missing or revoked → REFUSE immediately (kill switch)
+3. **Layer 1 (ENS):** `eth_call` to read `com.trinityguard.authority` on `momo.trinityguard.eth`
+   - Missing, empty, or `revoked` → REFUSE immediately (kill switch)
    - Read `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset` from text records
 4. **Layer 2 (Intercepta):**
    - `quick-scan-address` on `payTo`
@@ -197,11 +197,11 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| **FR-20** | Guardian MUST read EAC role `spend` from agent's subname before signing | MUST |
-| **FR-21** | Guardian MUST refuse payment if `spend` role is missing or revoked | MUST |
+| **FR-20** | Guardian MUST read text record `com.trinityguard.authority` from the agent's subname before signing | MUST |
+| **FR-21** | Guardian MUST refuse payment if `com.trinityguard.authority` is missing, empty, or not `active` | MUST |
 | **FR-22** | Guardian MUST read policy limits from ENS text records: `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap`, `com.trinityguard.asset` | MUST |
 | **FR-23** | Agent subname MUST be registered under the project domain: `[agent].trinityguard.eth` (e.g., `momo.trinityguard.eth`) on ENSv2 Permissioned Registry | MUST |
-| **FR-24** | Owner MUST be able to revoke `spend` role via on-chain transaction (kill switch — powers Demo Act 4) | MUST |
+| **FR-24** | Owner MUST be able to set `com.trinityguard.authority` to `revoked` via an on-chain text write (kill switch — powers Demo Act 4) | MUST |
 | **FR-25** | Subnames SHOULD support expiry dates for time-limited mandates | SHOULD |
 | **FR-26** | Guardian SHOULD check counterparty ENS resolution for risk scoring | COULD |
 | **FR-27** | Guardian COULD read policy contract address from `com.trinityguard.policy` text record | COULD |
@@ -253,13 +253,13 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 | **FR-60** | **Act 1 (Pass):** Agent buys weather API ($0.01), payTo in allowlist | ENS pass → Intercepta green → auto-sign → 200 OK | MUST |
 | **FR-61** | **Act 2 (Block):** Agent tries to buy from flagged payTo (scam address) | ENS pass → Intercepta red → HARD_FAIL → refused | MUST |
 | **FR-62** | **Act 3 (Cap):** Agent buys compute service ($7.00, exceeds perTxMax $5) | ENS pass → Intercepta green → over cap → World ID request → owner approves/denies | MUST |
-| **FR-63** | **Act 4 (Kill Switch):** Owner revokes spend role mid-session, agent retries | ENS fail (no spend role) → refused, even if verdict was green | MUST |
+| **FR-63** | **Act 4 (Kill Switch):** Owner sets `com.trinityguard.authority` to `revoked`, agent retries | ENS fail (authority revoked) → refused, even if Intercepta would be green | MUST |
 
 ### 4.8 Policy/Mandate On-Chain
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| **FR-70** | Spend permission MUST be stored as EAC role `spend` on subname | MUST |
+| **FR-70** | Spend permission MUST be stored as ENS text record `com.trinityguard.authority` with value `active` or `revoked` | MUST |
 | **FR-71** | Numeric limits MUST be stored as ENS text records: `com.trinityguard.perTxMax`, `com.trinityguard.dailyCap` | MUST |
 | **FR-72** | Asset restriction MUST be stored as text record `com.trinityguard.asset` | MUST |
 | **FR-73** | Spend accumulator MUST be stored off-chain in middleware (gas constraint) | MUST |
@@ -355,13 +355,13 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 
 **Note:** `trinityguard.eth` is registered on ENS mainnet. To use it as the parent for ENSv2-on-Sepolia subnames, the name must be imported/migrated into the ENSv2 testnet registry (or re-registered there). If migration blocks progress, fall back to a plain testnet name and keep the `[agent].trinityguard.eth` convention for demo continuity.
 
-### 6.5 USDC on Base Sepolia
+### 6.5 USDC on Sepolia
 
 | Property | Value |
 |----------|-------|
-| Address | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| Network | Base Sepolia (`eip155:84532`) |
-| Faucet | `https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet` |
+| Address | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| Network | Sepolia (`eip155:11155111`) |
+| Faucet | `https://faucet.circle.com` |
 
 ### 6.6 Environment Variables
 
@@ -386,10 +386,10 @@ Layer 3 — World ID  : The Approver   (human approval when risky)
 
 | Location | Key | Example Value |
 |----------|-----|---------------|
-| EAC role | `spend` | `true` (granted) or revoked |
+| Text record | `com.trinityguard.authority` | `active` or `revoked` |
 | Text record | `com.trinityguard.perTxMax` | `5000000` ($5.00 in USDC base units) |
 | Text record | `com.trinityguard.dailyCap` | `50000000` ($50.00) |
-| Text record | `com.trinityguard.asset` | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| Text record | `com.trinityguard.asset` | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
 | Text record | `com.trinityguard.policy` | (optional) policy contract address |
 | Subname expiry | N/A | Unix timestamp |
 
@@ -448,8 +448,8 @@ interface GuardianVerdict {
 | 0–2 | Request Intercepta key, register World sandbox, x402 hello world | Set up ENSv2 dev environment | Set up Next.js 15 project |
 | 2–10 | x402 buyer loop + Guardian skeleton + cap logic | Deploy Permissioned Registry + Resolver + EAC on Sepolia | Dashboard layout + payment feed component |
 | 10–18 | Intercepta live API integration (quick-scan, scan-token) | SDK for reading roles/text records from chain | Verdict display + spend meter |
-| 18–24 | **Integration:** World ID for Agents (request → approval → sign/deny) | **Integration:** Guardian reads EAC role before sign | **Integration:** Live ENS role state display |
-| 24–32 | Demo paths 1-4 end-to-end | Kill switch demo (revoke role, verify block) | Dashboard polish + demo recording prep |
+| 18–24 | **Integration:** World ID for Agents (request → approval → sign/deny) | **Integration:** Guardian reads `com.trinityguard.authority` before sign | **Integration:** Live authority state display |
+| 24–32 | Demo paths 1-4 end-to-end | Kill switch demo (set authority to `revoked`, verify block) | Dashboard polish + demo recording prep |
 | 32–36 | Buffer + submission | README + debrief (ENS) | Video + debrief (World, Intercepta) |
 
 ### 8.2 Integration Milestones
@@ -458,10 +458,10 @@ interface GuardianVerdict {
 |-----------|-------------|----------|
 | M1: x402 E2E | Hour 6 | Agent can buy from seller, payment settles on Base Sepolia |
 | M2: Guardian skeleton | Hour 10 | Guardian blocks flagged address (hard-coded), passes clean |
-| M3: ENS role read | Hour 18 | Guardian reads `spend` role from chain before sign |
+| M3: ENS authority read | Hour 18 | Guardian reads `com.trinityguard.authority` from chain before sign |
 | M4: Intercepta live | Hour 20 | Guardian calls live Intercepta API, demo shows reason |
 | M5: World ID flow | Hour 24 | Soft fail triggers World ID, owner can approve/deny |
-| M6: Kill switch | Hour 28 | Owner revokes role, immediate block regardless of verdict |
+| M6: Kill switch | Hour 28 | Owner sets authority to `revoked`, immediate block regardless of Intercepta |
 | M7: Dashboard live | Hour 30 | All 4 scenarios visible in dashboard |
 | M8: Submission ready | Hour 36 | Video recorded, README complete, repo public |
 
@@ -483,12 +483,11 @@ interface GuardianVerdict {
 
 | Criterion | How Addressed | FRs |
 |-----------|---------------|-----|
-| "Central, not cosmetic" | Spend permission stored on-chain via EAC; Guardian reads before every sign | FR-20, FR-21 |
-| Use EAC roles | `spend` role controls payment ability | FR-20, FR-21 |
-| Use text records | Policy limits in `com.trinityguard.*` records | FR-22, FR-70–FR-72 |
+| "Central, not cosmetic" | Spend permission stored on-chain as `com.trinityguard.authority`; Guardian reads before every sign | FR-20, FR-21 |
+| Use text records | `com.trinityguard.authority` is the revocable spend flag; limits stay in `com.trinityguard.perTxMax`, `dailyCap`, `asset` | FR-20–FR-22, FR-70–FR-72 |
 | Use expiring subnames | Agent mandates can have time limits | FR-25 |
 | Use Permissioned Registry | Subname registration for agents | FR-23 |
-| Kill switch demo | Demo Act 4: revoke role → immediate block | FR-63 |
+| Kill switch demo | Demo Act 4: set authority to `revoked` → immediate block | FR-63 |
 
 ### 9.3 Intercepta ($2,000 — Safe A2A Payments)
 
@@ -518,7 +517,7 @@ interface GuardianVerdict {
 | Risk | Likelihood | Impact | Fallback |
 |------|------------|--------|----------|
 | Scope creep (3 layers vs 2) | Medium | Incomplete demo | Hour 18 checkpoint: if integration not working, cut World ID (fall back to ENS+Intercepta = 2 sponsors) or cut ENS (fall back to idea #1 = World+Intercepta) |
-| ENSv2 beta instability | Medium | Can't deploy contracts | Reduce to wildcard resolution from existing name + hardcode EAC role check in middleware |
+| ENSv2 beta instability | Medium | Can't deploy contracts | Reduce to wildcard resolution from existing name + hardcode the authority text check in middleware |
 | World sandbox setup difficulty | Medium | No human approval demo | Fall back to IDKit mini app (still eligible for $7,500 IDKit prize) |
 | Intercepta key arrives late | Medium | Can't demo screening | Start with x402 + ENS first; plug in screening when key arrives |
 | x402 facilitator instability | Low | Payments don't settle | Self-host facilitator on anvil fork |

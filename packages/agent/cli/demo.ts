@@ -55,8 +55,14 @@ results.push(await agent.buy("/data"));
 banner("Act 3 — over per-tx cap (human approval)");
 results.push(await agent.buy("/compute", { askHuman: askOwner }));
 
-banner("Act 4 — kill switch (skipped)");
-console.log(C.dim("  skipped because the resolver setter is still unverified, not because the kill switch was dropped"));
+banner("Act 4 — kill switch");
+const rogue = await createAgent("rogue.agents.trinityguard.eth", key);
+rogue.onPaymentEvent((e: PaymentEvent) => {
+  const t = new Date(e.timestamp).toISOString().slice(11, 23);
+  const color = e.type === "paid" ? "green" : e.type === "refused" ? "red" : e.type === "guardian_verdict" ? "cyan" : "dim";
+  console.log(`${C.dim(t)} ${C.bold(`[${e.agentName}]`)} ${C[color](e.type)}${e.reason ? C.dim(` — ${e.reason}`) : ""}`);
+});
+results.push(await rogue.buy("/weather?city=tokyo"));
 
 banner("Summary");
 results.forEach((r, i) => {

@@ -8,6 +8,7 @@
     "demo": "node --env-file=../../.env --import tsx cli/demo.ts"
   },
   "dependencies": {
+    "@trinity-guardian/ens": "workspace:*",
     "@trinity/guardian": "workspace:*",
     "@x402/fetch": "^2.27.0",
     "@x402/core": "^2.27.0",
