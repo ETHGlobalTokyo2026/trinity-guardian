@@ -31,9 +31,9 @@ The canonical namespace is `trinityguard.eth`. The name `trinityguardian.eth` ap
       └── travel.agents.trinityguard.eth
   ```
 
-- Deploys one PermissionedResolver proxy and points the three agent names at it.
-- Writes an ETH address record (coin type `60`) for each of those three names.
-- Checks that viem resolves all three names to the current demo address.
+- Deploys one PermissionedResolver proxy and points the configured agent names at it.
+- Writes an ETH address record (coin type `60`) for each configured agent name.
+- Checks that viem resolves all five current demo names to the current demo address.
 
 The library surface is one export:
 
@@ -49,7 +49,7 @@ ENSv2 is used here as hierarchical identity and ENS-native authority.
 
 - `trinityguard.eth` is the project root.
 - `agents.trinityguard.eth` is the agent namespace, with its own UserRegistry.
-- Each agent is a child label (`shopping`, `research`, `travel`) under that registry.
+- Each agent is a child label (`shopping`, `research`, `travel`, `momo`, `rogue`) under that registry.
 - ENS roles on those registries control registration, subregistry changes, and resolver changes.
 - The PermissionedResolver stores the ETH address for a name.
 - viem’s Sepolia Universal Resolver reads that record back.
@@ -92,6 +92,8 @@ flowchart TD
   Shopping[shopping]
   Research[research]
   Travel[travel]
+  Momo[momo]
+  Rogue[rogue]
   Resolver["PermissionedResolver<br/>0xf23345070E24cb42E0A87323F75b84a34d9D33f6"]
   Addr["ETH address record<br/>coin type 60"]
 
@@ -99,6 +101,8 @@ flowchart TD
   Agents --> Shopping --> Resolver
   Agents --> Research --> Resolver
   Agents --> Travel --> Resolver
+  Agents --> Momo --> Resolver
+  Agents --> Rogue --> Resolver
   Resolver --> Addr
 ```
 
@@ -129,14 +133,16 @@ trinityguard.eth
 └── agents.trinityguard.eth
     ├── shopping.agents.trinityguard.eth
     ├── research.agents.trinityguard.eth
-    └── travel.agents.trinityguard.eth
+    ├── travel.agents.trinityguard.eth
+    ├── momo.agents.trinityguard.eth
+    └── rogue.agents.trinityguard.eth
 ```
 
 | Name | Registry that holds the label | How this package creates it |
 | --- | --- | --- |
 | `trinityguard.eth` | ENSv2 ETHRegistry | `ens:commit` then `ens:register` |
 | `agents.trinityguard.eth` | Trinity Guardian root UserRegistry | `ens:register-agents` |
-| `shopping` / `research` / `travel` | `agents.trinityguard.eth` UserRegistry | `ens:register-agent <label>` |
+| `shopping` / `research` / `travel` / `momo` / `rogue` | `agents.trinityguard.eth` UserRegistry | `ens:register-agent <label>` |
 
 `trinityguardian.eth` is obsolete. Do not pass it to `ens:deploy-registry`. The salt is `namehash` of the argument, so the obsolete name would deploy a different registry. `ens:register-shopping` still logs that obsolete name and targets a different registry address. Use `ens:register-agent` instead.
 
@@ -155,9 +161,9 @@ These addresses are the constants used by the current inspect, register-agent, r
 | PermissionedResolver implementation | `0x14f09fd05d4585759e54844dc9b00147131cf243` |
 | UserRegistry implementation | `0xa80338aaa8d23831cea25e858d1774534abb0263` |
 | VerifiableFactory | `0x9e726eb570beb6bceb495ab8cda7df517d4e841c` |
-| Demo/test wallet on the three address records | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
+| Demo/test wallet on the five address records | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
 
-The last row is a **demo/test address**. All three current agent names resolve to it. That does not mean production agents should share one wallet. `scripts/setup-agent-resolution.ts` writes `PRIVATE_KEY`’s address into every record and notes that each agent can later have its own wallet.
+The last row is a **demo/test address**. All five current demo agent names resolve to it. That does not mean production agents should share one wallet. `scripts/setup-agent-resolution.ts` writes `PRIVATE_KEY`’s address into every record and notes that each agent can later have its own wallet.
 
 ### Other addresses hardcoded in scripts
 
@@ -181,6 +187,8 @@ No transaction hashes are stored in this package.
 | `shopping.agents.trinityguard.eth` | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
 | `research.agents.trinityguard.eth` | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
 | `travel.agents.trinityguard.eth` | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
+| `momo.agents.trinityguard.eth` | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
+| `rogue.agents.trinityguard.eth` | `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` |
 
 That check walks the full path:
 
@@ -301,7 +309,7 @@ packages/guardian-ens/
 - A Sepolia wallet with ETH for gas, for any write script.
 - Mock USDC balance and allowance, only for `ens:register`. The script approves the registrar if the allowance is short.
 
-Run commands from `packages/guardian-ens`. This repository has no root workspace manifest. The only package is this one.
+Run these commands from `packages/guardian-ens`. The wider Trinity Guardian repository also contains the agent, guardian, seller, and UI packages; this README documents only the ENSv2 package.
 
 ## Environment Variables
 
@@ -401,7 +409,7 @@ Reads `SEPOLIA_RPC_URL` and `PRIVATE_KEY`. Prints the address derived from the k
 
 #### `pnpm ens:check`
 
-Resolves the three canonical agent names with `getEnsAddress`. Succeeds only when each one equals `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11`. No arguments. Safe to rerun. This is the smoke test for the current deployment.
+Resolves the five current demo agent names with `getEnsAddress`. Succeeds only when each one equals `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11`. No arguments. Safe to rerun. This is the smoke test for the current deployment.
 
 #### `pnpm ens:inspect`
 
@@ -542,11 +550,19 @@ For version 0 the script first checks `0xf23345070E24cb42E0A87323F75b84a34d9D33f
 
 No CLI arguments. Changing the salt formula or `RESOLVER_VERSION` targets a different proxy. Leave version `0` alone for the deployed resolver.
 
-#### `pnpm ens:setup-resolution`
+#### `pnpm ens:setup-resolution [agent-label ...]`
 
 ⚠️ **ON-CHAIN WRITE.** Supports `DRY_RUN=true` for phase 1 only.
 
-No CLI arguments. Hardcoded agents: `shopping`, `research`, `travel`. Hardcoded agents registry and PermissionedResolver (the current deployment).
+Without arguments, the default agents are `shopping`, `research`, and `travel`. When labels are supplied, only those labels are processed. The agents registry and PermissionedResolver are the current deployed constants.
+
+```bash
+# Default agents
+pnpm ens:setup-resolution
+
+# Selected agents
+pnpm ens:setup-resolution momo rogue
+```
 
 Phase 1, for each label:
 
@@ -558,7 +574,7 @@ Phase 1, for each label:
 
 `DRY_RUN=true` stops after phase 1. It does not simulate `setAddress`, because that write depends on the registry already pointing at the resolver.
 
-Phase 2 calls `setAddress` for every name, every time. It does not read the existing record first. The value is the signer address as 20 raw bytes, coin type `60`, name DNS-encoded (`shopping.agents.trinityguard.eth` → length-prefixed labels ending in `0x00`).
+Phase 2 calls `setAddress` for every selected name, every time. It does not read the existing record first. The value is the signer address as 20 raw bytes, coin type `60`, name DNS-encoded (`shopping.agents.trinityguard.eth` → length-prefixed labels ending in `0x00`).
 
 Phase 3 calls `getEnsAddress` and requires the resolved address to equal the signer.
 
@@ -582,9 +598,9 @@ The hierarchy in [Current Sepolia Deployment](#current-sepolia-deployment) is al
 8. `DRY_RUN=true pnpm ens:register-agents trinityguard <root-proxy>`.
 9. `DRY_RUN=true pnpm ens:deploy-registry agents.trinityguard.eth`.
 10. `DRY_RUN=true pnpm ens:attach-agents <root-proxy> agents <agents-proxy>`.
-11. `DRY_RUN=true pnpm ens:register-agent shopping`, then `research`, then `travel`.
+11. `DRY_RUN=true pnpm ens:register-agent shopping`, then `research`, `travel`, `momo`, and `rogue` (broadcast each after its dry run).
 12. `DRY_RUN=true pnpm ens:deploy-resolver`, then without `DRY_RUN` if no proxy exists yet.
-13. `DRY_RUN=true pnpm ens:setup-resolution`, then without `DRY_RUN`.
+13. `DRY_RUN=true pnpm ens:setup-resolution`, then without `DRY_RUN` for the default three; run `DRY_RUN=true pnpm ens:setup-resolution momo rogue` and then the write command for the two plan/demo agents.
 14. `pnpm ens:check`.
 
 Skip `ens:register-shopping`.
@@ -619,10 +635,16 @@ What this does **not** do:
 
 - It does not set a resolver.
 - It does not write an address record.
-- `ens:setup-resolution` will not pick the new label up. That script’s list is `shopping`, `research`, and `travel`.
-- `ens:check` will not look for the new name.
+- `ens:check` only checks the five current demo names unless its list is extended.
 
-Until a resolver and `setAddress` record exist, `getEnsAddress` for the new name will not return a wallet. This package has no follow-up command that takes an arbitrary label and publishes its address. Extending that path means changing `scripts/setup-agent-resolution.ts`, or sending the same `getTokenId` → `setResolver(tokenId, …)` → `setAddress` sequence the script uses for the three demo names.
+After registration, publish resolution for the new label with the same setup command:
+
+```bash
+DRY_RUN=true pnpm ens:setup-resolution <label>
+pnpm ens:setup-resolution <label>
+```
+
+The setup command performs `getTokenId` → `setResolver(tokenId, …)` → `setAddress` for the supplied label. Until those steps complete, `getEnsAddress` for the new name will not return its wallet.
 
 There is no ENS call in this package that lists every child label. Track created agents in application state (SQLite in the wider system) and verify each name on chain.
 
@@ -634,7 +656,7 @@ pnpm ens:check
 
 READ ONLY. Requires `SEPOLIA_RPC_URL` only.
 
-This is the test that the three canonical names still resolve through viem.
+This is the test that the five current demo names still resolve through viem.
 
 ## Expected Results
 
@@ -664,6 +686,14 @@ Resolving: research.agents.trinityguard.eth
   Resolution OK ✓
 
 Resolving: travel.agents.trinityguard.eth
+  Resolved: 0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11
+  Resolution OK ✓
+
+Resolving: momo.agents.trinityguard.eth
+  Resolved: 0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11
+  Resolution OK ✓
+
+Resolving: rogue.agents.trinityguard.eth
   Resolved: 0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11
   Resolution OK ✓
 
@@ -728,10 +758,6 @@ Resolver version 0 is pinned to `0xf23345070E24cb42E0A87323F75b84a34d9D33f6` in 
 
 `ens:commit` stores the secret only in `.env.local`. `ens:register` sends that secret to `register(...)`. The commitment was built from the same secret, owner, duration, and zero subregistry/resolver/referrer. Any mismatch between the secret used at commit and the secret used at register makes `register` fail.
 
-### Setup script name string
-
-Phase 3 of `scripts/setup-agent-resolution.ts` builds the name with an extra trailing `}` and then drops the last character before calling `getEnsAddress`. The names actually resolved are the three canonical `*.agents.trinityguard.eth` names.
-
 ## Safety / Security Notes
 
 1. Never commit `.env.local`. `.gitignore` ignores `.env`, `.env.local`, and `.env*.local`.
@@ -747,19 +773,18 @@ Phase 3 of `scripts/setup-agent-resolution.ts` builds the name with an extra tra
 11. Do not `source .env.local`.
 12. To drop a stale shell secret without displaying it: `unset ENS_REGISTRATION_SECRET`.
 13. This package targets Ethereum Sepolia only. It is hackathon/testnet infrastructure, not production wallet infrastructure.
-14. The three demo names share `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` on purpose for the current test. Do not copy that pattern into a production agent design.
+14. The five current demo names share `0x9A8F6F3fc819BEE96f0a76bAA4afa424c10c4B11` on purpose for the current test. Do not copy that pattern into a production agent design.
 
 ## Known Limitations / Hackathon MVP Decisions
 
 - Ethereum Sepolia only. `createEnsClient` hardcodes viem’s `sepolia` chain, chain ID `11155111`.
-- `shopping`, `research`, and `travel` all resolve to the same demo/test wallet.
+- `shopping`, `research`, `travel`, `momo`, and `rogue` all resolve to the same demo/test wallet.
 - SQLite and application policy live outside this package. This repository currently contains this ENS package and a one-line root README.
 - Spending limits and destination allowlists are not ENS records here. The resolver write is `setAddress` only.
 - Intercepta and x402 are outside this package.
 - Hackathon/testnet infrastructure, not production wallet infrastructure.
 - Nothing in this package lists all agent names in one ENS view call. `ens:inspect` reads two fixed names. The application can store created agents in SQLite and verify each one on chain.
 - ENSv2 beta behavior used here (`getTokenId`, `getResolver(string)`, initializer `0x33cc44a0`, `setAddress(bytes,uint256,bytes)`) was checked against this deployment. Do not replace these ABIs with unexamined upstream source.
-- `ens:setup-resolution` cannot publish an address for a newly registered label without a code change.
 - `ens:register-shopping` and the usage example in `ens:deploy-registry` still mention the obsolete `trinityguardian.eth` name.
 - `.env.example` lists `MOCK_USDC`, `WALLET`, `ETH_REGISTRAR`, `LABEL`, `DURATION`, and `PRICE`, and no script reads them.
 - `test/` has no tests.
@@ -775,9 +800,9 @@ Use this package’s names and checker:
 pnpm ens:check
 ```
 
-`pnpm ens:debug-resolver` resolves `ur.integration-tests.eth`. A result for that fixture says nothing about `shopping.agents.trinityguard.eth`, `research.agents.trinityguard.eth`, or `travel.agents.trinityguard.eth`.
+`pnpm ens:debug-resolver` resolves `ur.integration-tests.eth`. A result for that fixture says nothing about the five current `*.agents.trinityguard.eth` demo names.
 
-`ens:check` fails when the resolved address is not the demo wallet. A later `ens:setup-resolution` run with a different `PRIVATE_KEY` overwrites the three records and causes that failure.
+`ens:check` fails when the resolved address is not the demo wallet. A later `ens:setup-resolution` run with a different `PRIVATE_KEY` overwrites the selected records and causes that failure.
 
 ### `setResolver` reverts
 
@@ -826,7 +851,7 @@ The initializer and `setAddress` signatures in `scripts/deploy-permissioned-reso
 
 ## Integration With the Main Trinity Guardian App
 
-This git repository’s only package is `packages/guardian-ens`. Nothing here imports World ID, Intercepta, x402, or SQLite.
+This README covers `packages/guardian-ens`. The wider repository also contains agent, guardian, seller, and UI packages. This ENS package itself does not import World ID, Intercepta, x402, or SQLite.
 
 The app should treat ENS as identity:
 
@@ -837,18 +862,17 @@ The app should treat ENS as identity:
 
 `createEnsClient` is a public client only. It does not sign, and it does not know about agent policy.
 
-A shared demo wallet is what the three current records resolve to. An application that creates more agents should give each agent its own address record and should not infer payment rights from the ENS name alone. Leaf names are registered with ENS role bitmap `0`.
+A shared demo wallet is what the five current demo records resolve to. An application that creates more agents should give each agent its own address record and should not infer payment rights from the ENS name alone. Leaf names are registered with ENS role bitmap `0`.
 
 ## Future Work
 
 Not implemented in this package:
 
 - A distinct ETH address per agent. The setup script already comments that the shared test wallet is temporary.
-- A setup command that attaches the PermissionedResolver and writes `setAddress` for any label registered with `ens:register-agent`.
 - Removing or replacing `ens:register-shopping` and the obsolete `trinityguardian.eth` example on `ens:deploy-registry`.
 - Reading `.env.example` values that the scripts currently ignore, or deleting those unused keys.
 - Tests. `pnpm test` has no test files.
 - On-chain indexing of every child label. The intended application approach is to record created agents off chain and verify them with `getEnsAddress`.
 - Wiring this resolver into World ID, Guardian policy, Intercepta, and x402. Those stay outside the ENS registry.
 
-This module was developed as part of Trinity Guardian for ETHGlobal Tokyo 2026. The deployment above is a Sepolia hackathon deployment verified by `getEnsAddress` on the three canonical names.
+This module was developed as part of Trinity Guardian for ETHGlobal Tokyo 2026. The deployment above is a Sepolia hackathon deployment verified by `getEnsAddress` on the five current demo names.
