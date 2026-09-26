@@ -1,7 +1,7 @@
 {
   "project": "Trinity Guardian",
   "branchName": "feature/ui",
-  "description": "Next.js 15 + TailwindCSS demo dashboard for Trinity Guardian (ETHGlobal Tokyo 2026). Tells the product story in 4 screens: agent picker (role states from ENS), seller picker (spam/legit risk legible before paying), payment flow (live 3-layer journey with verdict chips), and the World ID moment (interactive approve/deny on soft-fail — deny is a first-class outcome). Persistent: spend meter vs dailyCap, ENS role badge, payment log. Starts from mock fixtures matching the event contracts; swaps to real imports as features land on dev. SRS: FR-50..FR-55, FR-60..FR-63.",
+  "description": "Next.js 15 + TailwindCSS demo dashboard for Trinity Guardian (ETHGlobal Tokyo 2026). Tells the product story in 4 screens: agent picker (on-chain payment authority active vs revoked; limits from Guardian policy), seller picker (spam/legit risk legible before paying), payment flow (live 3-layer journey with verdict chips), and the World ID moment (interactive approve/deny on soft-fail — deny is a first-class outcome). Persistent: spend meter vs dailyCap, payment-authority badge, payment log. Agent names are <agent>.agents.trinityguard.eth. Starts from mock fixtures; swaps to real imports as features land on dev. SRS: FR-50..FR-55, FR-60..FR-63.",
   "userStories": [
     {
       "id": "UI-001",
@@ -20,17 +20,18 @@
     {
       "id": "UI-002",
       "title": "Screen 1 — Agent picker with role states",
-      "description": "As a demo presenter, I want to pick which agent acts (momo: active role vs rogue: revoked), so selecting a revoked agent visibly changes payment outcomes (kill switch demo).",
+      "description": "As a demo presenter, I want to pick which agent acts (momo.agents.trinityguard.eth: authority active vs rogue.agents.trinityguard.eth: authority revoked), so selecting a revoked agent visibly changes payment outcomes (kill switch demo).",
       "acceptanceCriteria": [
-        "AgentPicker lists 2+ agents with name, subname ([agent].trinityguard.eth), perTxMax, dailyCap",
-        "Revoked agent shows red REVOKED badge; active shows green ACTIVE",
-        "Selecting revoked agent causes later payments to hard-fail at ENS layer (Act 4)",
-        "Uses guardian.readPolicy() when live, mock agents array until then",
+        "AgentPicker lists 2+ agents with name, subname (<agent>.agents.trinityguard.eth), perTxMax, dailyCap",
+        "perTxMax and dailyCap come from Guardian policy, not ENS text records",
+        "Revoked agent shows red REVOKED payment-authority badge; active shows green ACTIVE",
+        "Selecting revoked agent causes later payments to hard-fail at the ENS layer before Intercepta (Act 4)",
+        "Uses guardian.readAuthority() and readAppPolicy() when live, mock agents array until then",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "FR-53. Agents differ by EAC spend role + ENS text records."
+      "notes": "FR-53. Authority is on-chain. Limits are Guardian application state. Not an ENSv2 role named spend."
     },
     {
       "id": "UI-003",
@@ -86,7 +87,7 @@
       "description": "As a viewer, I want ambient state always visible — spend vs cap, agent role, history — so the dashboard feels alive between actions.",
       "acceptanceCriteria": [
         "SpendMeter shows $X.XX / $50.00 with progress bar (color shifts at 50%/80%)",
-        "RoleBadge shows ACTIVE (green) or REVOKED (red) for current agent",
+        "RoleBadge shows ACTIVE (green) or REVOKED (red) for the current agent's on-chain payment authority",
         "PaymentLog lists history: timestamp, resource, status, amount",
         "All update live from payment events",
         "Typecheck passes"
@@ -103,7 +104,7 @@
         "Act 1: momo → weather → paid with tx hash",
         "Act 2: momo → data (spam) → Intercepta red → refused with reason",
         "Act 3: momo → compute ($7) → soft-fail → World ID panel → approve or deny both work",
-        "Act 4: rogue (revoked) → any seller → ENS hard-fail immediately",
+        "Act 4: rogue.agents.trinityguard.eth (authority revoked) → any seller → ENS hard-fail immediately, before Intercepta",
         "All four acts reproducible on demand",
         "Typecheck passes"
       ],

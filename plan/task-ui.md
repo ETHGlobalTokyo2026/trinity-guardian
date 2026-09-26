@@ -14,8 +14,8 @@
 
 1. **Screen 1 — Agent Picker:**
    - Choose which agent acts
-   - Agents differ by on-chain role (spend role granted vs revoked)
-   - Display ENS text records (perTxMax, dailyCap)
+   - Agents differ by on-chain payment authority (active vs revoked)
+   - Display perTxMax and dailyCap from Guardian application policy, not from ENS text records
    - Selecting agent with revoked role visibly affects later outcomes
 
 2. **Screen 2 — Seller Picker:**
@@ -40,7 +40,7 @@
 
 5. **Persistent Elements:**
    - Spend accumulator meter vs dailyCap
-   - Current ENS role state badge (active/revoked)
+   - Current on-chain payment-authority badge (active/revoked)
    - Payment log history
 
 **Stack:** Next.js 15 + TailwindCSS
@@ -110,8 +110,8 @@ export const mockMerchants: MerchantInfo[] = [
 
 // src/ui/mocks/agents.ts
 export const mockAgents = [
-  { name: "momo", subname: "momo.trinityguard.eth", roleActive: true, perTxMax: 5000000n, dailyCap: 50000000n },
-  { name: "rogue", subname: "rogue.trinityguard.eth", roleActive: false, perTxMax: 0n, dailyCap: 0n },
+  { name: "momo", subname: "momo.agents.trinityguard.eth", authorityActive: true, perTxMax: 5000000n, dailyCap: 50000000n },
+  { name: "rogue", subname: "rogue.agents.trinityguard.eth", authorityActive: false, perTxMax: 5000000n, dailyCap: 50000000n },
 ];
 ```
 
@@ -123,7 +123,7 @@ export const mockAgents = [
 | `GuardianVerdict` type | task-guardian | Layer detail types | Use mock verdict fixtures |
 | `GET /merchants` | task-seller | `MerchantsResponse` | Use mock merchants array |
 | `Agent.buy()` | task-agent | Trigger purchase | Button calls mock handler |
-| `guardian.readPolicy()` | task-guardian | ENS role state | Use mock agents array |
+| `guardian.readAuthority()` / `readAppPolicy()` | task-guardian | On-chain authority and Guardian limits | Use mock agents array |
 
 **Key dependency:** dev branch must be mergeable early so UI can build on real data from landed features.
 
@@ -151,8 +151,8 @@ export const mockAgents = [
 ### Screen 1 — Agent Picker
 
 1. Displays 2+ agents with different role states
-2. Shows perTxMax, dailyCap from ENS text records
-3. Revoked agent shows red "REVOKED" badge
+2. Shows perTxMax and dailyCap from Guardian policy
+3. Revoked agent shows a red "REVOKED" payment-authority badge
 4. Selecting revoked agent visibly affects payment outcome later
 
 ### Screen 2 — Seller Picker
@@ -181,7 +181,7 @@ export const mockAgents = [
 ### Persistent Elements
 
 1. Spend meter shows `$X.XX / $50.00` with progress bar
-2. Role badge shows "ACTIVE" (green) or "REVOKED" (red)
+2. Authority badge shows "ACTIVE" (green) or "REVOKED" (red)
 3. Payment log shows history with timestamp, status, amount
 
 ### Demo Acts
@@ -191,7 +191,7 @@ export const mockAgents = [
 | 1 | Agent momo → Seller weather → Buy | ENS pass → Intercepta green → paid ✓ |
 | 2 | Agent momo → Seller data (spam) → Buy | ENS pass → Intercepta RED → refused |
 | 3 | Agent momo → Seller compute ($7) → Buy | soft_fail → World ID panel → approve/deny |
-| 4 | Agent rogue (revoked) → Any → Buy | ENS RED → refused immediately |
+| 4 | Agent rogue (authority revoked) → Any → Buy | ENS hard-fail immediately, before Intercepta |
 
 ## Git workflow
 
