@@ -89,9 +89,9 @@ async function attachWorldId(a: ApprovalRequest) {
     runId: a.runId,
     kind: "approval.requested",
     level: "info",
-    title: `World ID device code ${device.user_code} issued`,
-    detail: `owner opens ${device.verification_uri_complete} in the sandbox World App`,
-    data: { approvalId: a.id, userCode: device.user_code },
+    title: "World ID device code issued",
+    detail: "owner scans the QR on the dashboard with the sandbox World App",
+    data: { approvalId: a.id },
   });
 
   let intervalMs = Math.max(device.interval, 1) * 1000;

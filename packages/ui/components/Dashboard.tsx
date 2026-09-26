@@ -36,9 +36,15 @@ export default function Dashboard() {
     }
   });
   const [unauthorized, setUnauthorized] = useState(false);
+  // load() is created once, so it reads the token through a ref
+  const ownerTokenRef = useRef(ownerToken);
+  useEffect(() => {
+    ownerTokenRef.current = ownerToken;
+  }, [ownerToken]);
 
   const saveOwnerToken = (t: string) => {
     setOwnerToken(t);
+    ownerTokenRef.current = t;
     setUnauthorized(false);
     try {
       if (t) localStorage.setItem("ownerToken", t);
@@ -46,6 +52,7 @@ export default function Dashboard() {
     } catch {
       /* private mode */
     }
+    void load();
   };
 
   /** POST to an owner-only route with the owner token attached. */
@@ -62,7 +69,9 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/state", { cache: "no-store" });
+      const t = ownerTokenRef.current;
+      // the owner token unlocks the World ID code and QR link on pending approvals
+      const res = await fetch("/api/state", { cache: "no-store", headers: t ? { Authorization: `Bearer ${t}` } : {} });
       if (!res.ok) throw new Error(`server responded ${res.status}`);
       setState(await res.json());
       setLoadError(null);
@@ -90,6 +99,8 @@ export default function Dashboard() {
     });
     es.addEventListener("approval", (m) => {
       const a = JSON.parse((m as MessageEvent).data) as ApprovalRequest;
+      // SSE cannot carry the owner token: fetch the unredacted approval over an authorized request
+      if (a.worldId?.redacted && ownerTokenRef.current) void load();
       setState((s) => {
         if (!s) return s;
         const rest = s.approvals.filter((x) => x.id !== a.id);

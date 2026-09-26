@@ -20,3 +20,8 @@ export function requireAdmin(req: Request): NextResponse | null {
   const ok = given.length === want.length && timingSafeEqual(given, want);
   return ok ? null : NextResponse.json({ error: "owner token required" }, { status: 401 });
 }
+
+/** True when the request may see owner-only data (always, while ADMIN_TOKEN is unset). */
+export function isOwner(req: Request): boolean {
+  return requireAdmin(req) === null;
+}

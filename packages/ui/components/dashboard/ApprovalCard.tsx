@@ -100,6 +100,8 @@ export function ApprovalCard({
                 {countdown.expired ? "request expired" : `expires in ${countdown.label}`}
               </p>
             </>
+          ) : w?.redacted ? (
+            <div className="text-sm text-ink-2 py-6">Enter the owner token to show the World ID QR.</div>
           ) : (
             <div className="text-sm text-ink-2 py-6">{w?.error ?? "Contacting World ID…"}</div>
           )}

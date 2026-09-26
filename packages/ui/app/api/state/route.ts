@@ -8,12 +8,12 @@ import { worldIdConfigured, worldIdDevBypass } from "@/lib/guardian/worldid";
 import { WORLD_ISSUER } from "@/lib/config";
 import { ownerConfigured } from "@/lib/ens/client";
 import { ensConfigured } from "@/lib/ens/names";
-import { adminTokenRequired } from "@/lib/admin-auth";
+import { adminTokenRequired, isOwner } from "@/lib/admin-auth";
 
-export async function GET() {
+export async function GET(req: Request) {
   const mandate = await loadMandate(agentAccount.address);
   return NextResponse.json({
-    ...snapshot(),
+    ...snapshot({ owner: isOwner(req) }),
     policy: mandate,
     policyHash: policyHash(mandate),
     scenarios,

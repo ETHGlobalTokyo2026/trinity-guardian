@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import type { GuardianDecision } from "./guardian/types";
 
 /**
@@ -74,6 +75,8 @@ export type ApprovalRequest = {
     /** "world-id" | "dev-bypass" | "cancelled" */
     mode?: string;
     error?: string;
+    /** true when userCode / verification URIs were stripped for a viewer without the owner token */
+    redacted?: boolean;
   };
 };
 
@@ -145,7 +148,7 @@ const store = g.__agentpayStore;
 export const bus = store.bus;
 
 export function newId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${randomUUID()}`;
 }
 
 /* ---------- events ---------- */
@@ -233,10 +236,21 @@ export function resetAll() {
   bus.emit("reset", null);
 }
 
-export function snapshot() {
+/**
+ * The World ID user code and verification link let whoever opens them answer
+ * the device grant, so only the owner may see them. Everyone else gets the
+ * approval with those fields blanked.
+ */
+export function redactApproval(a: ApprovalRequest): ApprovalRequest {
+  if (!a.worldId?.verificationUriComplete && !a.worldId?.userCode) return a;
+  return { ...a, worldId: { ...a.worldId, userCode: "", verificationUri: "", verificationUriComplete: "", redacted: true } };
+}
+
+export function snapshot({ owner }: { owner: boolean }) {
+  const approvals = listApprovals();
   return {
     events: listEvents(),
     ledger: getLedger(),
-    approvals: listApprovals(),
+    approvals: owner ? approvals : approvals.map(redactApproval),
   };
 }

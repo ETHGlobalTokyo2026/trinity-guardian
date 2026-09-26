@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getApproval } from "@/lib/store";
+import { getApproval, redactApproval } from "@/lib/store";
 import { cancelApproval, devResolveApproval } from "@/lib/guardian/approval";
-import { requireAdmin } from "@/lib/admin-auth";
+import { isOwner, requireAdmin } from "@/lib/admin-auth";
 
-export async function GET(_req: Request, ctx: RouteContext<"/api/approvals/[id]">) {
+export async function GET(req: Request, ctx: RouteContext<"/api/approvals/[id]">) {
   const { id } = await ctx.params;
   const a = getApproval(id);
   if (!a) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(a);
+  return NextResponse.json(isOwner(req) ? a : redactApproval(a));
 }
 
 /**
