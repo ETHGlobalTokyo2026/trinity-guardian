@@ -3,7 +3,7 @@ import path from "node:path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  outputFileTracingRoot: path.join(__dirname, "../.."),
+  outputFileTracingRoot: process.env.DOCKER_BUILD ? __dirname : path.join(__dirname, "../.."),
 };
 
 export default nextConfig;
