@@ -23,7 +23,8 @@
     "ens:scan-factory": "node --env-file=.env.local --experimental-strip-types scripts/scan-factory.ts",
     "ens:deploy-resolver": "node --env-file=.env.local --experimental-strip-types scripts/deploy-permissioned-resolver.ts",
     "ens:setup-resolution": "node --env-file=.env.local --experimental-strip-types scripts/setup-agent-resolution.ts",
-    "ens:probe-records": "node --env-file=.env.local --experimental-strip-types scripts/probe-resolver-records.ts"
+    "ens:probe-records": "node --env-file=.env.local --experimental-strip-types scripts/probe-resolver-records.ts",
+    "ens:read-policy": "node --env-file=.env.local --experimental-strip-types scripts/read-policy-text.ts"
   },
   "devEngines": {
     "packageManager": {
