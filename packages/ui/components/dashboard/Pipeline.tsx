@@ -111,7 +111,7 @@ export function pipelineFor(run: Run | undefined, approval: ApprovalRequest | un
         ? { tone: "wait", status: "waiting for owner" }
         : approval.status === "approved"
           ? { tone: "pass", status: "owner approved" }
-          : { tone: "fail", status: approval.status === "expired" ? "request expired" : "owner denied" };
+          : { tone: "fail", status: { expired: "request expired", invalid: "proof invalid", denied: "owner denied" }[approval.status] ?? "refused" };
   } else if (run.verdict === "allow" || decision?.verdict === "allow") l3 = { tone: "skip", status: "not needed" };
   else l3 = { tone: "idle", status: "never ran" };
 

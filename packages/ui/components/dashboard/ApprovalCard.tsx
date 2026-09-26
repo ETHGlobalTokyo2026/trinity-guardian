@@ -1,10 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { ApprovalRequest } from "@/lib/store";
 import { CopyText, Stamp, StatusChip, useCountdown } from "./primitives";
 import { CHECK_LABEL, chipClass, reasonParts } from "./utils";
 
 type Integrations = { intercepta: boolean; worldId: boolean; worldIssuer: string; worldDevBypass: boolean };
+
+// IDKit touches window at import time, so it only loads in the browser
+const WorldIdConnect = dynamic(() => import("./WorldIdConnect").then((m) => m.WorldIdConnect), {
+  ssr: false,
+  loading: () => <p className="py-6 text-sm text-ink-2">Loading World ID…</p>,
+});
 
 /** Under this many seconds the countdown turns shu and gains a ⚠. */
 const NEAR_EXPIRY_MS = 30_000;
@@ -71,7 +78,7 @@ export function ApprovalCard({
           </div>
 
           <p className="max-w-[52ch] text-sm leading-normal text-ink-3">
-            Only a World ID proof validated by the backend can release this payment. Approving on this screen is not possible.
+            Only a World ID proof validated by the backend can release this payment. This screen can open World ID or cancel, never approve.
           </p>
 
           <div className="flex flex-wrap gap-2.5">
@@ -83,36 +90,11 @@ export function ApprovalCard({
               ✕ Cancel request
             </button>
           </div>
-
-          {integrations.worldDevBypass && (
-            <div className="flex flex-col gap-2.5 rounded-xl border-2 border-dashed border-hold bg-paper px-4 py-3.5">
-              <p className="text-sm font-bold text-hold">Dev bypass — resolves without a World ID proof</p>
-              <div className="flex flex-wrap gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => onAction(a.id, "dev-approve")}
-                  className="min-h-11 rounded-[10px] border-[1.5px] border-allow bg-sheet px-4 text-[15px] font-bold text-allow hover:bg-allow-soft"
-                >
-                  ✓ Approve (dev)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onAction(a.id, "dev-deny")}
-                  className="min-h-11 rounded-[10px] border-[1.5px] border-deny bg-sheet px-4 text-[15px] font-bold text-deny hover:bg-deny-soft"
-                >
-                  ✕ Deny (dev)
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="mx-auto flex min-w-[260px] flex-[0_1_300px] flex-col items-center self-start gap-2.5 rounded-[14px] border border-line bg-paper p-5 text-center">
-          <p className="text-[15px] font-medium">World ID proof required</p>
-          <p className="mono break-all text-sm">{a.id}</p>
-          <p className="text-sm text-ink-2">action {a.launch.action}</p>
+          <WorldIdConnect approvalId={a.id} configured={integrations.worldId} />
           {a.error ? <p className="text-sm text-deny">{a.error}</p> : null}
-          {integrations.worldId ? null : <p className="text-sm text-deny">World ID is not configured</p>}
           <Countdown pct={timePct} label={countdown.label} expired={countdown.expired} near={nearExpiry} />
         </div>
       </div>
