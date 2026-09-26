@@ -1,140 +1,123 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
-import {
-  WORLD_CLIENT_ID,
-  WORLD_CLIENT_SECRET,
-  WORLD_DEV_BYPASS,
-  WORLD_ISSUER,
-  WORLD_OWNER_SUB,
-} from "../config";
+import { hashSignal } from "@worldcoin/idkit-core/hashing";
+import { signRequest } from "@worldcoin/idkit-core/signing";
+import { APPROVAL_TIMEOUT_MS, WORLD_ENVIRONMENT } from "../config";
 
-/**
- * World ID for Agents — OAuth 2.0 Device Authorization Grant (RFC 8628) against
- * the World ID OpenID Connect provider.
- *
- *   discovery: {WORLD_ISSUER}/.well-known/openid-configuration
- *   start:     POST {WORLD_ISSUER}/api/v1/device_authorization   scope=openid
- *   poll:      POST {WORLD_ISSUER}/api/v1/token                  grant_type=urn:ietf:params:oauth:grant-type:device_code
- *   keys:      GET  {WORLD_ISSUER}/.well-known/jwks.json
- *
- * Flow: the backend (a confidential client) creates a device authorization and
- * shows the human `user_code` + `verification_uri_complete`. The human proves
- * with the sandbox World App and explicitly approves or denies. The backend
- * polls the token endpoint: `authorization_pending` → keep waiting,
- * `access_denied` → denied, `expired_token` → expired, 200 → an RS256 ID token
- * we validate locally (issuer, audience, signature, expiry, acr, auth_time).
- *
- * The device_code and client secret never leave this module.
- */
+const VERIFY_URL = "https://developer.world.org/api/v4/verify";
 
-export const ACR_ORB = "https://world.org/oidc/acr/orb-v3";
-
-export type DeviceAuthorization = {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  verification_uri_complete: string;
-  expires_in: number;
-  interval: number;
+export type RpContext = {
+  rp_id: string;
+  nonce: string;
+  created_at: number;
+  expires_at: number;
+  signature: string;
 };
 
-export type DevicePoll =
-  | { status: "pending" }
-  | { status: "slow_down" }
-  | { status: "denied" | "expired" | "invalid" | "unavailable"; error?: string }
-  | {
-      status: "approved";
-      sub: string;
-      authTime: number;
-      acr?: string;
-      amr?: string[];
-      idToken: string;
-    };
+export type WorldLaunch = {
+  appId: string;
+  rpId: string;
+  action: string;
+  signal: string;
+  signalHash: string;
+  environment: typeof WORLD_ENVIRONMENT;
+  rpContext: RpContext;
+};
 
-const jwks = createRemoteJWKSet(new URL(`${WORLD_ISSUER}/.well-known/jwks.json`));
+export type IdKitResult = {
+  protocol_version?: string;
+  nonce?: string;
+  action?: string;
+  environment?: string;
+  responses?: Array<{ signal_hash?: string; nullifier?: string }>;
+};
 
-function basicAuth() {
-  return "Basic " + Buffer.from(`${WORLD_CLIENT_ID}:${WORLD_CLIENT_SECRET}`).toString("base64");
+function appId() {
+  return process.env.NEXT_PUBLIC_WORLD_APP_ID ?? "";
+}
+
+function rpId() {
+  return process.env.NEXT_PUBLIC_WORLD_RP_ID ?? "";
+}
+
+function action() {
+  return process.env.WORLD_ACTION ?? "";
+}
+
+function signingKey() {
+  return process.env.RP_SIGNING_KEY ?? "";
 }
 
 export function worldIdConfigured(): boolean {
-  return Boolean(WORLD_CLIENT_ID && WORLD_CLIENT_SECRET);
+  return Boolean(appId() && rpId() && action() && signingKey());
 }
 
 export function worldIdDevBypass(): boolean {
-  return WORLD_DEV_BYPASS && !worldIdConfigured();
+  return false;
 }
 
-export async function startDeviceApproval(): Promise<DeviceAuthorization> {
-  const res = await fetch(`${WORLD_ISSUER}/api/v1/device_authorization`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: basicAuth() },
-    body: new URLSearchParams({ scope: "openid" }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!res.ok) {
-    throw new Error(`device_authorization ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  }
-  return (await res.json()) as DeviceAuthorization;
+export function approvalSignal(parts: {
+  id: string;
+  agent: string;
+  amount: string;
+  asset: string;
+  payTo: string;
+  reason: string;
+}): string {
+  return [parts.id, parts.agent, parts.amount, parts.asset.toLowerCase(), parts.payTo.toLowerCase(), parts.reason].join("|");
 }
 
-export async function pollDeviceApproval(deviceCode: string): Promise<DevicePoll> {
-  const res = await fetch(`${WORLD_ISSUER}/api/v1/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: basicAuth() },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-      device_code: deviceCode,
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (res.status === 503 || res.status === 429) return { status: "unavailable" };
+function redact(message: string): string {
+  const key = signingKey();
+  return key ? message.split(key).join("[redacted]") : message;
+}
 
-  const body = (await res.json().catch(() => ({}))) as { error?: string; id_token?: string };
-  if (!res.ok) {
-    switch (body.error) {
-      case "authorization_pending":
-        return { status: "pending" };
-      case "slow_down":
-        return { status: "slow_down" };
-      case "access_denied":
-        return { status: "denied", error: body.error };
-      case "expired_token":
-        return { status: "expired", error: body.error };
-      default:
-        return { status: "invalid", error: body.error ?? `HTTP ${res.status}` };
-    }
+export function signApproval(signal: string): WorldLaunch {
+  if (!worldIdConfigured()) throw new Error("World ID is not configured");
+  const ttl = Math.max(1, Math.floor(APPROVAL_TIMEOUT_MS / 1000));
+  let signed;
+  try {
+    signed = signRequest({ signingKeyHex: signingKey(), action: action(), ttl });
+  } catch (error) {
+    throw new Error(redact(error instanceof Error ? error.message : "could not sign World ID request"));
   }
-  if (!body.id_token) return { status: "invalid", error: "token response without id_token" };
-
-  const claims = await verifyIdToken(body.id_token);
   return {
-    status: "approved",
-    sub: claims.sub!,
-    authTime: Number(claims.auth_time),
-    acr: claims.acr as string | undefined,
-    amr: claims.amr as string[] | undefined,
-    idToken: body.id_token,
+    appId: appId(),
+    rpId: rpId(),
+    action: action(),
+    signal,
+    signalHash: hashSignal(signal),
+    environment: WORLD_ENVIRONMENT,
+    rpContext: {
+      rp_id: rpId(),
+      nonce: signed.nonce,
+      created_at: signed.createdAt,
+      expires_at: signed.expiresAt,
+      signature: signed.sig,
+    },
   };
 }
 
-/**
- * Local validation of the ID token. "Merely decoding a JWT is not validation."
- * Throws on any failure so callers cannot accidentally treat a bad token as approval.
- */
-export async function verifyIdToken(idToken: string): Promise<JWTPayload> {
-  const { payload } = await jwtVerify(idToken, jwks, {
-    issuer: WORLD_ISSUER,
-    audience: WORLD_CLIENT_ID,
-    algorithms: ["RS256"],
-    clockTolerance: 30,
-  });
-  if (!payload.sub) throw new Error("id_token missing sub");
-  if (typeof payload.auth_time !== "number") throw new Error("id_token missing auth_time");
-  if (payload.acr !== ACR_ORB) throw new Error(`unexpected acr ${String(payload.acr)}`);
-  if (WORLD_OWNER_SUB && payload.sub !== WORLD_OWNER_SUB) {
-    throw new Error("identity mismatch: proof came from a human who is not the registered owner");
+export function proofMatches(launch: WorldLaunch, proof: IdKitResult): string | null {
+  if (proof.action !== launch.action) return "action mismatch";
+  if (proof.nonce !== launch.rpContext.nonce) return "nonce mismatch";
+  const responses = proof.responses ?? [];
+  if (responses.length === 0) return "proof has no responses";
+  if (responses.some((response) => (response.signal_hash ?? "").toLowerCase() !== launch.signalHash.toLowerCase())) {
+    return "signal mismatch";
   }
-  return payload;
+  if (!responses[0]?.nullifier) return "proof missing nullifier";
+  return null;
+}
+
+export async function verifyWorldId(proof: IdKitResult): Promise<{ nullifier: string }> {
+  const res = await fetch(`${VERIFY_URL}/${rpId()}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(proof),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`world id verify failed (${res.status})`);
+  const nullifier = proof.responses?.[0]?.nullifier;
+  if (!nullifier) throw new Error("world id verify response missing nullifier");
+  return { nullifier };
 }

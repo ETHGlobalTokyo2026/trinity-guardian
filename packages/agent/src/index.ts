@@ -10,10 +10,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { createEnsClient, readPolicyText } from "@trinity-guardian/ens";
 import { createGuardian } from "@trinity/guardian";
 import { privateKeyToAccount } from "viem/accounts";
+import { resumeAfterVerdict } from "./approval-gate.js";
 import { decodeQuote, pickAccept } from "./quote.js";
 import { SpendAccumulator } from "./spend.js";
 import type {
-  AskHuman,
   BuyOptions,
   BuyResult,
   PaymentEvent,
@@ -98,12 +98,16 @@ export async function createAgent(name: string, privateKey: `0x${string}`): Prom
 
       if (verdict.decision === "soft_fail") {
         emit({ type: "approval_requested", resource, approvalRequested: true, reason: verdict.reasons.join("; ") });
-        const askHuman: AskHuman | undefined = opts.askHuman;
-        const approved = (await askHuman?.(reqs, verdict.reasons)) ?? false;
-        emit({ type: "approval_response", resource, approved });
-        if (!approved) {
-          emit({ type: "refused", resource, reason: "owner denied via World ID [mock]" });
-          return { status: "refused", payTo: reqs.payTo, amount: reqs.amount, reason: "owner denied via World ID [mock]", spendState: accumulator.get() };
+        if (!opts.approval) {
+          emit({ type: "refused", resource, reason: "World ID approval is not configured" });
+          return { status: "refused", payTo: reqs.payTo, amount: reqs.amount, reason: "World ID approval is not configured", spendState: accumulator.get() };
+        }
+        const gate = await resumeAfterVerdict(verdict, reqs, name, resource, opts.approval);
+        emit({ type: "approval_response", resource, approved: gate.resume });
+        if (!gate.resume) {
+          const reason = gate.reason ?? "owner denied";
+          emit({ type: "refused", resource, reason });
+          return { status: "refused", payTo: reqs.payTo, amount: reqs.amount, reason, spendState: accumulator.get() };
         }
       }
 

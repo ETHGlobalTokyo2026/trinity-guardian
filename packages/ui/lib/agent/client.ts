@@ -4,7 +4,7 @@ import { NETWORK, appBaseUrl } from "../config";
 import { policy, toAtomic, fromAtomic } from "../policy";
 import { emit, newId, recordSpend } from "../store";
 import { evaluate } from "../guardian/evaluate";
-import { requestApproval, waitForApproval } from "../guardian/approval";
+import { consumeApproval, requestApproval, waitForApproval } from "../guardian/approval";
 import { agentAccount } from "./wallet";
 import type { Scenario } from "./scenarios";
 import { revokeSpendRole } from "../ens/admin";
@@ -53,8 +53,7 @@ export function createGuardedClient(runId: string) {
       return { abort: true, reason: decision.reason };
     }
 
-    /* ask_human: park the thread until the owner answers through World ID */
-    const approval = requestApproval(runId, decision);
+    const approval = requestApproval(runId, decision, policy.agent);
     const resolved = await waitForApproval(approval.id);
 
     if (resolved.status !== "approved") {
@@ -62,11 +61,18 @@ export function createGuardedClient(runId: string) {
         runId,
         kind: "blocked",
         level: "danger",
-        title: resolved.status === "denied" ? "Owner denied — payment refused" : "Approval expired — payment refused",
+        title: `Approval ${resolved.status} — payment refused`,
         detail: decision.reason,
         data: { approvalId: approval.id, status: resolved.status },
       });
       return { abort: true, reason: `owner ${resolved.status}: ${decision.reason}` };
+    }
+    try {
+      consumeApproval(approval.id);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "approval could not be consumed";
+      emit({ runId, kind: "blocked", level: "danger", title: "Approval could not be consumed — payment refused", detail: reason });
+      return { abort: true, reason };
     }
 
     const limit = toAtomic(resolved.approvedLimit ?? fromAtomic(req.amount));

@@ -1,6 +1,5 @@
 "use client";
 
-import QRCode from "react-qr-code";
 import type { ApprovalRequest } from "@/lib/store";
 import { CopyText, Stamp, StatusChip, useCountdown } from "./primitives";
 import { CHECK_LABEL, chipClass, worldPollLabel, reasonParts } from "./utils";
@@ -19,10 +18,8 @@ export function ApprovalCard({
   integrations: Integrations;
   onAction: (id: string, action: string) => Promise<void>;
 }) {
-  const w = a.worldId;
-  const link = w?.verificationUriComplete;
   const failedChecks = a.decision.checks.filter((c) => c.status === "soft_fail" || c.status === "hard_fail");
-  const deadline = w?.expiresAt ?? a.expiresAt;
+  const deadline = a.expiresAt;
   const countdown = useCountdown(deadline);
   const totalMs = Math.max(1, Date.parse(deadline) - Date.parse(a.createdAt));
   const timePct = Math.max(0, Math.min(100, (countdown.remainingMs / totalMs) * 100));

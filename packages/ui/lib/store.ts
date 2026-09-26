@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import type { GuardianDecision } from "./guardian/types";
+import type { WorldLaunch } from "./guardian/worldid";
 
 /**
  * Tiny in-process store: event feed, daily spend ledger, and pending human
@@ -37,15 +38,15 @@ export type FeedEvent = {
   data?: Record<string, unknown>;
 };
 
-export type ApprovalStatus = "pending" | "approved" | "denied" | "expired";
+export type ApprovalStatus = "pending" | "approved" | "denied" | "expired" | "invalid";
 
 export type ApprovalRequest = {
   id: string;
   runId: string;
+  agent: string;
   createdAt: string;
   expiresAt: string;
   status: ApprovalStatus;
-  /** Why the Guardian stopped and asked a human. */
   reason: string;
   decision: GuardianDecision;
   quote: {
@@ -56,28 +57,12 @@ export type ApprovalRequest = {
     asset: string;
     network: string;
   };
-  /** One-time limit (whole units) the owner granted when approving. */
+  launch: WorldLaunch;
   approvedLimit?: string;
   resolvedAt?: string;
-  /** What the human is shown to complete the World ID device flow. Never contains device_code. */
-  worldId?: {
-    userCode: string;
-    verificationUri: string;
-    verificationUriComplete: string;
-    expiresAt: string;
-    intervalSec: number;
-    /** last poll outcome, for the dashboard */
-    lastPoll?: string;
-    /** filled once an ID token was validated */
-    sub?: string;
-    authTime?: number;
-    acr?: string;
-    /** "world-id" | "dev-bypass" | "cancelled" */
-    mode?: string;
-    error?: string;
-    /** true when userCode / verification URIs were stripped for a viewer without the owner token */
-    redacted?: boolean;
-  };
+  consumedAt?: string;
+  nullifier?: string;
+  error?: string;
 };
 
 export type LedgerEntry = {
@@ -236,14 +221,8 @@ export function resetAll() {
   bus.emit("reset", null);
 }
 
-/**
- * The World ID user code and verification link let whoever opens them answer
- * the device grant, so only the owner may see them. Everyone else gets the
- * approval with those fields blanked.
- */
 export function redactApproval(a: ApprovalRequest): ApprovalRequest {
-  if (!a.worldId?.verificationUriComplete && !a.worldId?.userCode) return a;
-  return { ...a, worldId: { ...a.worldId, userCode: "", verificationUri: "", verificationUriComplete: "", redacted: true } };
+  return a;
 }
 
 export function snapshot({ owner }: { owner: boolean }) {
