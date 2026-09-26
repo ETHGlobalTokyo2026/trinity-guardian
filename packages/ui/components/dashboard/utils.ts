@@ -1,5 +1,6 @@
 import type { ApprovalRequest, FeedEvent } from "@/lib/store";
 import type { GuardianDecision } from "@/lib/guardian/types";
+import type { Mandate } from "@/lib/policy";
 
 export type Ledger = {
   day: string;
@@ -152,4 +153,10 @@ export function runSummary(run: Run): string {
 
 export function approvalForRun(approvals: ApprovalRequest[], runId: string) {
   return approvals.find((a) => a.runId === runId);
+}
+
+/** Layer 1 is open: the agent's name is registered, unexpired and holds the spend role. */
+export function spendGateOpen(policy: Mandate): boolean {
+  const oc = policy.onChain;
+  return Boolean(oc && !oc.error && oc.status === "registered" && oc.spendRole && !oc.expired);
 }
