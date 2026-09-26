@@ -28,7 +28,7 @@ const OUTCOME: Record<StampVerdict, { name: string; sub: string; tone: GateTone 
   paid: { name: "Paid", sub: "signed & settled", tone: "pass" },
   hold: { name: "Held", sub: "until the owner approves", tone: "wait" },
   refused: { name: "Refused", sub: "nothing signed — the money did not move", tone: "fail" },
-  failed: { name: "Not settled", sub: "approved, but settlement failed", tone: "skip" },
+  failed: { name: "Not settled", sub: "signed, but settlement failed", tone: "skip" },
   screening: { name: "Screening", sub: "screening in progress", tone: "idle" },
 };
 
@@ -148,6 +148,8 @@ export function Pipeline({ model }: { model: PipelineModel }) {
   ];
   const connectorTone = (i: number): GateTone => {
     if (i >= model.stopAt) return "idle";
+    // a gate the payment never needed (e.g. World ID on an auto-signed payment) stays grey, wires included
+    if (nodes[i].tone === "skip" || nodes[i + 1].tone === "skip") return "skip";
     if (i + 1 === model.stopAt && model.verdict !== "paid") return ({ hold: "wait", refused: "fail", screening: "guard", failed: "pass" } as const)[model.verdict];
     return "pass";
   };
