@@ -206,6 +206,23 @@ export async function submitProof(id: string, proof: IdKitResult): Promise<Appro
   }
 }
 
+/**
+ * Fresh RP signature for the widget, signed when the owner clicks rather than
+ * when the approval was created (same pattern as the reference VerifyPanel).
+ * The signal (the payment binding) is unchanged; only the nonce and window
+ * move, and the new nonce replaces the stored one so the proof check follows.
+ */
+export function relaunchApproval(id: string): ApprovalRequest {
+  const current = getApproval(id);
+  if (!current) throw new Error("approval not found");
+  if (current.status !== "pending") throw new Error(`approval already ${current.status}`);
+  const remainingSec = (Date.parse(current.expiresAt) - Date.now()) / 1000;
+  if (remainingSec <= 0) throw new Error("approval expired");
+  const updated = updateApproval(id, { launch: signApproval(current.launch.signal, remainingSec) });
+  if (!updated) throw new Error("approval not found");
+  return updated;
+}
+
 export function cancelApproval(id: string): ApprovalRequest {
   const current = getApproval(id);
   if (!current) throw new Error("approval not found");

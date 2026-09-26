@@ -6,6 +6,7 @@ import {
   createSoftFailApproval,
   publicApproval,
   rejectClientApprovalFlag,
+  relaunchApproval,
   requestApproval,
   submitProof,
   type ApprovalBinding,
@@ -81,6 +82,27 @@ describe("World ID approval", () => {
     const proof = proofFor(created.launch.rpContext.nonce, created.launch.action, created.launch.signalHash);
     await submitProof(created.id, proof);
     await assert.rejects(() => submitProof(created.id, proof), /already/);
+  });
+
+  it("relaunch re-signs the RP context and the proof must use the new nonce", async () => {
+    const created = createSoftFailApproval(binding);
+    const oldNonce = created.launch.rpContext.nonce;
+    const relaunched = relaunchApproval(created.id);
+    assert.notEqual(relaunched.launch.rpContext.nonce, oldNonce);
+    // the payment binding does not move
+    assert.equal(relaunched.launch.signal, created.launch.signal);
+    assert.equal(relaunched.launch.signalHash, created.launch.signalHash);
+    // the RP window never outlives the approval
+    assert.ok(relaunched.launch.rpContext.expires_at * 1000 <= Date.parse(relaunched.expiresAt) + 1000);
+    await assert.rejects(() => submitProof(created.id, proofFor(oldNonce, created.launch.action, created.launch.signalHash)), /nonce mismatch/);
+  });
+
+  it("accepts a proof for the relaunched nonce", async () => {
+    const created = createSoftFailApproval(binding);
+    const relaunched = relaunchApproval(created.id);
+    const approved = await submitProof(created.id, proofFor(relaunched.launch.rpContext.nonce, relaunched.launch.action, relaunched.launch.signalHash));
+    assert.equal(approved.status, "approved");
+    assert.throws(() => relaunchApproval(created.id), /already approved/);
   });
 
   it("marks a cancelled approval denied", () => {
