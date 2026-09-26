@@ -35,6 +35,8 @@ function interceptaChainId(network: string): string {
 }
 
 type QuickScanResponse = {
+  /** explicit verdict from our Intercepta mock (docs/intercepta.md); checked before score and traits */
+  isScam?: boolean;
   toxicScore: number;
   traits: { risk: number; name: string; txsCount: number; description: string }[];
 };
@@ -131,12 +133,12 @@ export async function screenAddress(address: string): Promise<Screening> {
   );
   if (!r.ok) return { verdict: "unknown", reasons: [r.error], raw: r.raw, endpoint, latencyMs: r.latencyMs };
 
-  const { toxicScore, traits = [] } = r.data;
+  const { isScam, toxicScore, traits = [] } = r.data;
   const reasons = traits.map((t) => `${t.name}${t.description ? ` — ${t.description}` : ""}${t.txsCount ? ` (${t.txsCount} txs)` : ""}`);
   const hardTrait = traits.some((t) => BLOCKING_TRAITS.has(t.name));
   // Intercepta does not publish a threshold; this is Guardian policy:
   // any trait or a non-zero toxic score is a red flag for an autonomous payer.
-  const flagged = hardTrait || traits.length > 0 || toxicScore > 0;
+  const flagged = isScam === true || hardTrait || traits.length > 0 || toxicScore > 0;
   if (flagged && reasons.length === 0) reasons.push(`toxicScore ${toxicScore}`);
   return {
     verdict: flagged ? "flagged" : "clear",
