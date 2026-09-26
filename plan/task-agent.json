@@ -95,7 +95,7 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "FR-60..FR-63. Port from POC demo.ts. Scenario 4 depends on guardian ENS layer landing."
     }
   ]
